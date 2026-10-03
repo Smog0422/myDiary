@@ -23,11 +23,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.room.Room
-import com.example.mydiary.data.CheckInRepository
 import com.example.mydiary.data.CheckInRepositoryImpl
 import com.example.mydiary.data.MyDiaryDatabase
-import com.example.mydiary.data.TagRepository
 import com.example.mydiary.data.TagRepositoryImpl
+import com.example.mydiary.data.TaskRepositoryImpl
 import com.example.mydiary.ui.home.HomeScreen
 import com.example.mydiary.ui.tags.TagManagementScreen
 import com.example.mydiary.ui.theme.MyDiaryTheme
@@ -39,18 +38,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val database = Room.databaseBuilder(this, MyDiaryDatabase::class.java, "mydiary.db")
-            .addMigrations(MyDiaryDatabase.MIGRATION_1_2)
+            .addMigrations(MyDiaryDatabase.MIGRATION_1_2, MyDiaryDatabase.MIGRATION_2_3)
             .build()
         val tagRepository = TagRepositoryImpl(database.tagDao())
         val checkInRepository = CheckInRepositoryImpl(database.checkInDao())
+        val taskRepository = TaskRepositoryImpl(
+            database.taskTemplateDao(),
+            database.taskItemDao(),
+            database.taskInstanceDao(),
+        )
 
         setContent {
             MyDiaryTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScaffold(
-                        tagRepository = tagRepository,
-                        checkInRepository = checkInRepository,
-                    )
+                    MainScaffold(tagRepository, checkInRepository, taskRepository)
                 }
             }
         }
@@ -59,8 +60,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun MainScaffold(
-    tagRepository: TagRepository,
-    checkInRepository: CheckInRepository,
+    tagRepository: com.example.mydiary.data.TagRepository,
+    checkInRepository: com.example.mydiary.data.CheckInRepository,
+    taskRepository: com.example.mydiary.data.TaskRepository,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -86,10 +88,12 @@ private fun MainScaffold(
             0 -> HomeScreen(
                 tagRepository = tagRepository,
                 checkInRepository = checkInRepository,
+                taskRepository = taskRepository,
                 modifier = Modifier.padding(innerPadding),
             )
             1 -> TagManagementScreen(
                 repository = tagRepository,
+                taskRepository = taskRepository,
                 modifier = Modifier.padding(innerPadding),
             )
         }

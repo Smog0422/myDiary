@@ -12,8 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,37 +38,61 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.mydiary.data.CheckInRepository
 import com.example.mydiary.data.Tag
-import com.example.mydiary.data.TagRepository
+import com.example.mydiary.data.TaskInstance
+import com.example.mydiary.data.TaskRepository
+import com.example.mydiary.data.currentPeriodKeys
 import kotlinx.coroutines.launch
 
 /**
- * 首页：快捷打卡区（最近常用标签按钮）+ 可选备注。
- * T2 范围：打卡记录闭环。任务清单区在 T3 加入。
+ * 首页：任务清单区（本周+本月）+ 快捷打卡区。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    tagRepository: TagRepository,
+    tagRepository: com.example.mydiary.data.TagRepository,
     checkInRepository: CheckInRepository,
+    taskRepository: TaskRepository,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
     val tags by tagRepository.observeAll().collectAsState(initial = emptyList())
+
+    // 当前周期标识
+    val (weekKey, monthKey) = remember { currentPeriodKeys() }
+    val weeklyTasks by taskRepository.observeInstancesByPeriod(weekKey).collectAsState(initial = emptyList())
+    val monthlyTasks by taskRepository.observeInstancesByPeriod(monthKey).collectAsState(initial = emptyList())
+
     var showNoteDialog by remember { mutableStateOf(false) }
     var noteTargetTag by remember { mutableStateOf<Tag?>(null) }
-    var noteText by remember { mutableStateOf("") }
 
     Scaffold { padding ->
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("MyDiary", style = MaterialTheme.typography.headlineSmall)
 
-            // 快捷打卡区：显示所有标签作为大按钮
+            // 本周任务
+            TaskListSection(
+                title = "本周任务",
+                instances = weeklyTasks,
+                onToggle = { inst -> scope.launch { taskRepository.toggleDone(inst) } },
+            )
+
+            // 本月任务
+            TaskListSection(
+                title = "本月任务",
+                instances = monthlyTasks,
+                onToggle = { inst -> scope.launch { taskRepository.toggleDone(inst) } },
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 快捷打卡区
             Text("记一笔", style = MaterialTheme.typography.titleMedium)
 
             FlowRow(
@@ -83,7 +108,6 @@ fun HomeScreen(
                         tag = tag,
                         onClick = {
                             noteTargetTag = tag
-                            noteText = ""
                             showNoteDialog = true
                         },
                     )
@@ -92,22 +116,15 @@ fun HomeScreen(
         }
     }
 
-    // 备注对话框（可选）
     if (showNoteDialog) {
         NoteDialog(
             tag = noteTargetTag!!,
-            initialNote = noteText,
             onConfirm = { note ->
-                scope.launch {
-                    checkInRepository.record(noteTargetTag!!.id, note)
-                }
+                scope.launch { checkInRepository.record(noteTargetTag!!.id, note) }
                 showNoteDialog = false
             },
             onQuickRecord = {
-                // 不写备注，直接记录
-                scope.launch {
-                    checkInRepository.record(noteTargetTag!!.id, null)
-                }
+                scope.launch { checkInRepository.record(noteTargetTag!!.id, null) }
                 showNoteDialog = false
             },
             onDismiss = { showNoteDialog = false },
@@ -116,10 +133,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun CheckInButton(
-    tag: Tag,
-    onClick: () -> Unit,
-) {
+private fun CheckInButton(tag: Tag, onClick: () -> Unit) {
     Card(
         modifier = Modifier.size(72.dp),
         shape = CircleShape,
@@ -134,10 +148,7 @@ private fun CheckInButton(
             verticalArrangement = Arrangement.Center,
         ) {
             Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(Color(tag.color)),
+                modifier = Modifier.size(16.dp).clip(CircleShape).background(Color(tag.color)),
             )
             Spacer(Modifier.height(4.dp))
             Text(
@@ -153,12 +164,11 @@ private fun CheckInButton(
 @Composable
 private fun NoteDialog(
     tag: Tag,
-    initialNote: String,
     onConfirm: (String?) -> Unit,
     onQuickRecord: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var note by remember { mutableStateOf(initialNote) }
+    var note by remember { mutableStateOf("") }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
@@ -177,18 +187,12 @@ private fun NoteDialog(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onQuickRecord) {
-                    Text("直接记录")
-                }
-                Button(onClick = { onConfirm(note.takeIf { it.isNotBlank() }) }) {
-                    Text("记录")
-                }
+                OutlinedButton(onClick = onQuickRecord) { Text("直接记录") }
+                Button(onClick = { onConfirm(note.takeIf { it.isNotBlank() }) }) { Text("记录") }
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("取消")
-            }
+            OutlinedButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }

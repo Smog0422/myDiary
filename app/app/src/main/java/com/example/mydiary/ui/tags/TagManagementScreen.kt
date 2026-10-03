@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.mydiary.data.Tag
 import com.example.mydiary.data.TagRepository
+import com.example.mydiary.data.TaskRepository
 import kotlinx.coroutines.launch
 /**
  * 管理页：标签的增删改 + 颜色选择。
@@ -48,6 +49,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TagManagementScreen(
     repository: TagRepository,
+    taskRepository: TaskRepository,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -113,6 +115,9 @@ fun TagManagementScreen(
                     )
                 }
             }
+
+            // 任务模板编辑区
+            TaskTemplateSection(taskRepository = taskRepository)
         }
     }
 
