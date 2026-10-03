@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "tags")
 data class Tag(
-    @PrimaryKey val id: Int,
+    @PrimaryKey(autoGenerate = true) val id: Int,
     val name: String,
     /** ARGB 整型颜色，如 0xFF6200EE.toInt() */
     val color: Int,

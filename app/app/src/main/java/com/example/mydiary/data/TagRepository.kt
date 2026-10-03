@@ -1,6 +1,5 @@
 package com.example.mydiary.data
 
-import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -14,31 +13,30 @@ interface TagRepository {
     suspend fun delete(id: Int)
 }
 
-class TagRepositoryImpl(private val dao: TagDao, private val db: MyDiaryDatabase) : TagRepository {
+class TagRepositoryImpl(private val dao: TagDao) : TagRepository {
 
     override fun observeAll(): Flow<List<Tag>> = dao.observeAll()
 
     override suspend fun create(name: String, color: Int): Long {
-        // 自增 id：先插入占位，Room 回填真实 id
-        var newId = 0L
-        db.withTransaction {
-            newId = dao.insert(Tag(id = 0, name = name, color = color, createdAt = System.currentTimeMillis()))
-        }
-        return newId
+        return dao.insert(
+            Tag(id = 0, name = name, color = color, createdAt = System.currentTimeMillis())
+        )
     }
 
     override suspend fun rename(id: Int, name: String) {
-        val tag = dao.getById(id) ?: return
-        dao.update(tag.copy(name = name))
+        withTag(id) { tag -> dao.update(tag.copy(name = name)) }
     }
 
     override suspend fun recolor(id: Int, color: Int) {
-        val tag = dao.getById(id) ?: return
-        dao.update(tag.copy(color = color))
+        withTag(id) { tag -> dao.update(tag.copy(color = color)) }
     }
 
     override suspend fun delete(id: Int) {
+        withTag(id) { tag -> dao.delete(tag) }
+    }
+
+    private suspend fun withTag(id: Int, block: suspend (Tag) -> Unit) {
         val tag = dao.getById(id) ?: return
-        dao.delete(tag)
+        block(tag)
     }
 }

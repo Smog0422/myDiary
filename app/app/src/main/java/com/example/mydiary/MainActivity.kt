@@ -18,16 +18,15 @@ import com.example.mydiary.ui.theme.MyDiaryTheme
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var database: MyDiaryDatabase
     private lateinit var tagRepository: TagRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        database = Room.databaseBuilder(this, MyDiaryDatabase::class.java, "mydiary.db")
+        val database = Room.databaseBuilder(this, MyDiaryDatabase::class.java, "mydiary.db")
             .build()
-        tagRepository = TagRepositoryImpl(database.tagDao(), database)
+        tagRepository = TagRepositoryImpl(database.tagDao())
 
         setContent {
             MyDiaryTheme {
