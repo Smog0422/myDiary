@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,6 +31,7 @@ import com.example.mydiary.data.PeriodSyncService
 import com.example.mydiary.data.TagRepositoryImpl
 import com.example.mydiary.data.TaskRepositoryImpl
 import com.example.mydiary.ui.home.HomeScreen
+import com.example.mydiary.ui.stats.StatsScreen
 import com.example.mydiary.ui.tags.TagManagementScreen
 import com.example.mydiary.ui.theme.MyDiaryTheme
 import kotlinx.coroutines.flow.first
@@ -57,9 +59,7 @@ class MainActivity : ComponentActivity() {
             taskRepository = taskRepository,
             templateProvider = { taskRepository.observeTemplates().first() },
         )
-        lifecycleScope.launch {
-            syncService.sync()
-        }
+        lifecycleScope.launch { syncService.sync() }
 
         setContent {
             MyDiaryTheme {
@@ -91,6 +91,12 @@ private fun MainScaffold(
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "统计") },
+                    label = { Text("统计") },
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "管理") },
                     label = { Text("管理") },
                 )
@@ -104,7 +110,12 @@ private fun MainScaffold(
                 taskRepository = taskRepository,
                 modifier = Modifier.padding(innerPadding),
             )
-            1 -> TagManagementScreen(
+            1 -> StatsScreen(
+                checkInRepository = checkInRepository,
+                tagRepository = tagRepository,
+                modifier = Modifier.padding(innerPadding),
+            )
+            2 -> TagManagementScreen(
                 repository = tagRepository,
                 taskRepository = taskRepository,
                 modifier = Modifier.padding(innerPadding),

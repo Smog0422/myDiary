@@ -18,4 +18,7 @@ interface CheckInDao {
 
     @Query("SELECT COUNT(*) FROM check_ins WHERE tagId = :tagId AND timestamp >= :since")
     suspend fun countByTagSince(tagId: Int, since: Long): Int
+
+    @Query("SELECT * FROM check_ins ORDER BY timestamp DESC")
+    fun observeAll(): Flow<List<CheckIn>>
 }

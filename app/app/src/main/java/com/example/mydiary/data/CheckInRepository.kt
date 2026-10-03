@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface CheckInRepository {
     fun observeRecent(limit: Int): Flow<List<CheckIn>>
+    fun observeAll(): Flow<List<CheckIn>>
     suspend fun record(tagId: Int, note: String? = null): Long
     suspend fun countByTagSince(tagId: Int, since: Long): Int
 }
@@ -14,6 +15,8 @@ interface CheckInRepository {
 class CheckInRepositoryImpl(private val dao: CheckInDao) : CheckInRepository {
 
     override fun observeRecent(limit: Int): Flow<List<CheckIn>> = dao.observeRecent(limit)
+
+    override fun observeAll(): Flow<List<CheckIn>> = dao.observeAll()
 
     override suspend fun record(tagId: Int, note: String?): Long {
         return dao.insert(
