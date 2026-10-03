@@ -22,14 +22,18 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
 import com.example.mydiary.data.CheckInRepositoryImpl
 import com.example.mydiary.data.MyDiaryDatabase
+import com.example.mydiary.data.PeriodSyncService
 import com.example.mydiary.data.TagRepositoryImpl
 import com.example.mydiary.data.TaskRepositoryImpl
 import com.example.mydiary.ui.home.HomeScreen
 import com.example.mydiary.ui.tags.TagManagementScreen
 import com.example.mydiary.ui.theme.MyDiaryTheme
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -47,6 +51,15 @@ class MainActivity : ComponentActivity() {
             database.taskItemDao(),
             database.taskInstanceDao(),
         )
+
+        // T4: App 启动时自动同步缺失周期
+        val syncService = PeriodSyncService(
+            taskRepository = taskRepository,
+            templateProvider = { taskRepository.observeTemplates().first() },
+        )
+        lifecycleScope.launch {
+            syncService.sync()
+        }
 
         setContent {
             MyDiaryTheme {

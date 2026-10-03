@@ -16,6 +16,7 @@ interface TaskRepository {
 
     // 实例
     fun observeInstancesByPeriod(periodKey: String): Flow<List<TaskInstance>>
+    fun observeAllInstances(): Flow<List<TaskInstance>>
     /** 从模板生成实例。返回生成的项数；已存在则返回 0（幂等）。 */
     suspend fun generateFromTemplate(templateId: Int, periodKey: String): Int
     suspend fun toggleDone(instance: TaskInstance)
@@ -49,6 +50,9 @@ class TaskRepositoryImpl(
 
     override fun observeInstancesByPeriod(periodKey: String): Flow<List<TaskInstance>> =
         instanceDao.observeByPeriod(periodKey)
+
+    override fun observeAllInstances(): Flow<List<TaskInstance>> =
+        instanceDao.observeAll()
 
     override suspend fun generateFromTemplate(templateId: Int, periodKey: String): Int {
         // 幂等：该模板+周期已有实例则跳过
