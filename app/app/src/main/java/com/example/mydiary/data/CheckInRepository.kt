@@ -10,6 +10,7 @@ interface CheckInRepository {
     fun observeAll(): Flow<List<CheckIn>>
     suspend fun record(tagId: Int, note: String? = null): Long
     suspend fun countByTagSince(tagId: Int, since: Long): Int
+    suspend fun importCheckIn(id: Int, tagId: Int?, note: String?, timestamp: Long)
 }
 
 class CheckInRepositoryImpl(private val dao: CheckInDao) : CheckInRepository {
@@ -31,5 +32,9 @@ class CheckInRepositoryImpl(private val dao: CheckInDao) : CheckInRepository {
 
     override suspend fun countByTagSince(tagId: Int, since: Long): Int {
         return dao.countByTagSince(tagId, since)
+    }
+
+    override suspend fun importCheckIn(id: Int, tagId: Int?, note: String?, timestamp: Long) {
+        dao.insert(CheckIn(id = id.toLong(), tagId = tagId, note = note, timestamp = timestamp))
     }
 }

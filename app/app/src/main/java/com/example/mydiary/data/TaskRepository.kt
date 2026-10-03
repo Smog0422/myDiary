@@ -20,6 +20,8 @@ interface TaskRepository {
     /** 从模板生成实例。返回生成的项数；已存在则返回 0（幂等）。 */
     suspend fun generateFromTemplate(templateId: Int, periodKey: String): Int
     suspend fun toggleDone(instance: TaskInstance)
+    suspend fun importTemplate(id: Int, period: String, name: String)
+    suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean)
 }
 
 class TaskRepositoryImpl(
@@ -77,5 +79,13 @@ class TaskRepositoryImpl(
 
     override suspend fun toggleDone(instance: TaskInstance) {
         instanceDao.update(instance.copy(done = !instance.done))
+    }
+
+    override suspend fun importTemplate(id: Int, period: String, name: String) {
+        templateDao.insert(TaskTemplate(id = id, period = period, name = name))
+    }
+
+    override suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean) {
+        instanceDao.insert(TaskInstance(id = id, templateId = templateId, periodKey = periodKey, title = title, sortOrder = sortOrder, done = done))
     }
 }

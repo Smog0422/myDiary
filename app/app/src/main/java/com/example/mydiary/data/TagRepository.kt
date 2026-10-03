@@ -11,6 +11,7 @@ interface TagRepository {
     suspend fun rename(id: Int, name: String)
     suspend fun recolor(id: Int, color: Int)
     suspend fun delete(id: Int)
+    suspend fun importTag(id: Int, name: String, color: Int, createdAt: Long)
 }
 
 class TagRepositoryImpl(private val dao: TagDao) : TagRepository {
@@ -33,6 +34,13 @@ class TagRepositoryImpl(private val dao: TagDao) : TagRepository {
 
     override suspend fun delete(id: Int) {
         withTag(id) { tag -> dao.delete(tag) }
+    }
+
+    override suspend fun importTag(id: Int, name: String, color: Int, createdAt: Long) {
+        val existing = dao.getById(id)
+        if (existing == null) {
+            dao.insert(Tag(id = id, name = name, color = color, createdAt = createdAt))
+        }
     }
 
     private suspend fun withTag(id: Int, block: suspend (Tag) -> Unit) {

@@ -6,6 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -13,10 +18,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -26,11 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
 import com.example.mydiary.data.CheckInRepositoryImpl
+import com.example.mydiary.data.DataTransferService
 import com.example.mydiary.data.MyDiaryDatabase
 import com.example.mydiary.data.PeriodSyncService
 import com.example.mydiary.data.TagRepositoryImpl
 import com.example.mydiary.data.TaskRepositoryImpl
 import com.example.mydiary.ui.home.HomeScreen
+import com.example.mydiary.ui.settings.SettingsScreen
 import com.example.mydiary.ui.stats.StatsScreen
 import com.example.mydiary.ui.tags.TagManagementScreen
 import com.example.mydiary.ui.theme.MyDiaryTheme
@@ -53,6 +56,7 @@ class MainActivity : ComponentActivity() {
             database.taskItemDao(),
             database.taskInstanceDao(),
         )
+        val transferService = DataTransferService(tagRepository, checkInRepository, taskRepository)
 
         // T4: App 启动时自动同步缺失周期
         val syncService = PeriodSyncService(
@@ -64,7 +68,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyDiaryTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScaffold(tagRepository, checkInRepository, taskRepository)
+                    MainScaffold(tagRepository, checkInRepository, taskRepository, transferService)
                 }
             }
         }
@@ -76,6 +80,7 @@ private fun MainScaffold(
     tagRepository: com.example.mydiary.data.TagRepository,
     checkInRepository: com.example.mydiary.data.CheckInRepository,
     taskRepository: com.example.mydiary.data.TaskRepository,
+    transferService: DataTransferService,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -100,6 +105,12 @@ private fun MainScaffold(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "管理") },
                     label = { Text("管理") },
                 )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Default.Tune, contentDescription = "设置") },
+                    label = { Text("设置") },
+                )
             }
         }
     ) { innerPadding ->
@@ -113,11 +124,17 @@ private fun MainScaffold(
             1 -> StatsScreen(
                 checkInRepository = checkInRepository,
                 tagRepository = tagRepository,
+                taskRepository = taskRepository,
                 modifier = Modifier.padding(innerPadding),
             )
             2 -> TagManagementScreen(
                 repository = tagRepository,
                 taskRepository = taskRepository,
+                modifier = Modifier.padding(innerPadding),
+            )
+            3 -> SettingsScreen(
+                transferService = transferService,
+                scope = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycleScope,
                 modifier = Modifier.padding(innerPadding),
             )
         }
