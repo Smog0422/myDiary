@@ -6,7 +6,6 @@ import org.json.JSONObject
 
 /**
  * 数据导出/导入服务。
- * JSON 格式：人类可读、跨工具通用。
  */
 class DataTransferService(
     private val tagRepository: TagRepository,
@@ -14,166 +13,81 @@ class DataTransferService(
     private val taskRepository: TaskRepository,
 ) {
 
-    /**
-     * 导出全量数据为 JSON 字符串。
-     */
+    /** 导出为格式化 JSON */
     suspend fun exportJson(): String {
         val tags = tagRepository.observeAll().first()
         val checkIns = checkInRepository.observeAll().first()
         val templates = taskRepository.observeTemplates().first()
-        val allInstances = taskRepository.observeAllInstances().first()
+        val instances = taskRepository.observeAllInstances().first()
 
         val root = JSONObject()
-
-        // 标签
-        val tagsArr = JSONArray()
-        tags.forEach { tag ->
-            tagsArr.put(
-                JSONObject()
-                    .put("id", tag.id)
-                    .put("name", tag.name)
-                    .put("color", tag.color)
-                    .put("createdAt", tag.createdAt)
-            )
-        }
-        root.put("tags", tagsArr)
-
-        // 打卡事件
-        val checkInsArr = JSONArray()
-        checkIns.forEach { ci ->
-            checkInsArr.put(
-                JSONObject()
-                    .put("id", ci.id)
-                    .put("tagId", ci.tagId ?: JSONObject.NULL)
-                    .put("note", ci.note ?: JSONObject.NULL)
-                    .put("timestamp", ci.timestamp)
-            )
-        }
-        root.put("checkIns", checkInsArr)
-
-        // 任务模板
-        val templatesArr = JSONArray()
-        templates.forEach { t ->
-            templatesArr.put(
-                JSONObject()
-                    .put("id", t.id)
-                    .put("period", t.period)
-                    .put("name", t.name)
-            )
-        }
-        root.put("taskTemplates", templatesArr)
-
-        // 任务实例
-        val instancesArr = JSONArray()
-        allInstances.forEach { inst ->
-            instancesArr.put(
-                JSONObject()
-                    .put("id", inst.id)
-                    .put("templateId", inst.templateId)
-                    .put("periodKey", inst.periodKey)
-                    .put("title", inst.title)
-                    .put("sortOrder", inst.sortOrder)
-                    .put("done", inst.done)
-            )
-        }
-        root.put("taskInstances", instancesArr)
-
-        return root.toString(2) // 格式化缩进
+        root.put("tags", JSONArray(tags.map {
+            JSONObject().put("id", it.id).put("name", it.name)
+                .put("color", it.color).put("createdAt", it.createdAt)
+        }))
+        root.put("checkIns", JSONArray(checkIns.map {
+            JSONObject().put("id", it.id).put("tagId", it.tagId ?: JSONObject.NULL)
+                .put("note", it.note ?: JSONObject.NULL).put("timestamp", it.timestamp)
+        }))
+        root.put("taskTemplates", JSONArray(templates.map {
+            JSONObject().put("id", it.id).put("period", it.period).put("name", it.name)
+        }))
+        root.put("taskInstances", JSONArray(instances.map {
+            JSONObject().put("id", it.id).put("templateId", it.templateId)
+                .put("periodKey", it.periodKey).put("title", it.title).put("done", it.done)
+        }))
+        return root.toString(2)
     }
 
-    /**
-     * 导入 JSON 字符串。校验通过才写入。
-     * @return 导入的记录数，或抛出 [ImportValidationException]
-     */
+    /** 导出为 SQL 脚本（建表 + INSERT） */
+    suspend fun exportSql(): String {
+        val tags = tagRepository.observeAll().first()
+        val checkIns = checkInRepository.observeAll().first()
+        val templates = taskRepository.observeTemplates().first()
+        val instances = taskRepository.observeAllInstances().first()
+
+        val sb = java.lang.StringBuilder()
+        fun line(s: String = "") { sb.append(s).append("\n") }
+
+        line("-- MyDiary SQL Export")
+        line("CREATE TABLE IF NOT EXISTS tags (id INT PRIMARY KEY, name VARCHAR(100), color INT, created_at BIGINT);")
+        line("CREATE TABLE IF NOT EXISTS check_ins (id BIGINT PRIMARY KEY, tag_id INT, note TEXT, timestamp BIGINT);")
+        line("CREATE TABLE IF NOT EXISTS task_templates (id INT PRIMARY KEY, period VARCHAR(10), name VARCHAR(100));")
+        line("CREATE TABLE IF NOT EXISTS task_instances (id INT PRIMARY KEY, template_id INT, period_key VARCHAR(20), title VARCHAR(200), done BOOLEAN);")
+        line()
+
+        tags.forEach { line("INSERT INTO tags VALUES (${it.id}, '${esc(it.name)}', ${it.color}, ${it.createdAt});") }
+        checkIns.forEach { line("INSERT INTO check_ins VALUES (${it.id}, ${it.tagId ?: "NULL"}, ${it.note?.let { "'${esc(it)}'" } ?: "NULL"}, ${it.timestamp});") }
+        templates.forEach { line("INSERT INTO task_templates VALUES (${it.id}, '${esc(it.period)}', '${esc(it.name)}');") }
+        instances.forEach { line("INSERT INTO task_instances VALUES (${it.id}, ${it.templateId}, '${esc(it.periodKey)}', '${esc(it.title)}', ${if (it.done) 1 else 0});") }
+
+        return sb.toString()
+    }
+
+    /** 导入 JSON，校验通过才写入 */
     suspend fun importJson(json: String): Int {
-        val root = parseAndValidate(json)
+        val root = try { JSONObject(json) } catch (e: Exception) { throw ImportValidationException("JSON 解析失败：${e.message}") }
+        for (field in listOf("tags", "checkIns", "taskTemplates", "taskInstances")) {
+            if (!root.has(field)) throw ImportValidationException("缺少必需字段：$field")
+        }
 
         var count = 0
-
-        // 导入标签
         val tagsArr = root.getJSONArray("tags")
         for (i in 0 until tagsArr.length()) {
             val obj = tagsArr.getJSONObject(i)
-            tagRepository.importTag(
-                id = obj.optInt("id", 0),
-                name = obj.getString("name"),
-                color = obj.getInt("color"),
-                createdAt = obj.getLong("createdAt"),
-            )
+            tagRepository.importTag(obj.getInt("id"), obj.getString("name"), obj.getInt("color"), obj.getLong("createdAt"))
             count++
         }
-
-        // 导入打卡
-        val checkInsArr = root.getJSONArray("checkIns")
-        for (i in 0 until checkInsArr.length()) {
-            val obj = checkInsArr.getJSONObject(i)
-            checkInRepository.importCheckIn(
-                id = obj.optInt("id", 0),
-                tagId = if (obj.isNull("tagId")) null else obj.getInt("tagId"),
-                note = if (obj.isNull("note")) null else obj.getString("note"),
-                timestamp = obj.getLong("timestamp"),
-            )
+        val ciArr = root.getJSONArray("checkIns")
+        for (i in 0 until ciArr.length()) {
+            val obj = ciArr.getJSONObject(i)
+            checkInRepository.importCheckIn(obj.getInt("id"), if (obj.isNull("tagId")) null else obj.getInt("tagId"), if (obj.isNull("note")) null else obj.getString("note"), obj.getLong("timestamp"))
             count++
         }
-
-        // 导入模板
-        val templatesArr = root.getJSONArray("taskTemplates")
-        for (i in 0 until templatesArr.length()) {
-            val obj = templatesArr.getJSONObject(i)
-            taskRepository.importTemplate(
-                id = obj.optInt("id", 0),
-                period = obj.getString("period"),
-                name = obj.getString("name"),
-            )
-            count++
-        }
-
-        // 导入实例
-        val instancesArr = root.getJSONArray("taskInstances")
-        for (i in 0 until instancesArr.length()) {
-            val obj = instancesArr.getJSONObject(i)
-            taskRepository.importInstance(
-                id = obj.optInt("id", 0),
-                templateId = obj.getInt("templateId"),
-                periodKey = obj.getString("periodKey"),
-                title = obj.getString("title"),
-                sortOrder = obj.getInt("sortOrder"),
-                done = obj.getBoolean("done"),
-            )
-            count++
-        }
-
         return count
     }
 
-    private fun parseAndValidate(json: String): JSONObject {
-        val root = try {
-            JSONObject(json)
-        } catch (e: Exception) {
-            throw ImportValidationException("JSON 解析失败：${e.message}")
-        }
-
-        // 校验必需字段
-        val required = listOf("tags", "checkIns", "taskTemplates", "taskInstances")
-        for (field in required) {
-            if (!root.has(field)) {
-                throw ImportValidationException("缺少必需字段：$field")
-            }
-            if (root.get(field) !is JSONArray) {
-                throw ImportValidationException("字段 $field 必须是数组")
-            }
-        }
-
-        // 校验标签条目
-        val tagsArr = root.getJSONArray("tags")
-        for (i in 0 until tagsArr.length()) {
-            val obj = tagsArr.getJSONObject(i)
-            if (!obj.has("name")) throw ImportValidationException("标签 [$i] 缺少 name")
-            if (!obj.has("color")) throw ImportValidationException("标签 [$i] 缺少 color")
-        }
-
-        return root
-    }
+    private fun esc(s: String): String = s.replace("'", "''")
 }
 
 class ImportValidationException(message: String) : Exception(message)

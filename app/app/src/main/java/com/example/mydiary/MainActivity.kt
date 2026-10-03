@@ -30,6 +30,7 @@ import com.example.mydiary.data.CheckInRepositoryImpl
 import com.example.mydiary.data.DataTransferService
 import com.example.mydiary.data.MyDiaryDatabase
 import com.example.mydiary.data.PeriodSyncService
+import com.example.mydiary.data.SleepReminderService
 import com.example.mydiary.data.TagRepositoryImpl
 import com.example.mydiary.data.TaskRepositoryImpl
 import com.example.mydiary.ui.home.HomeScreen
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
             database.taskInstanceDao(),
         )
         val transferService = DataTransferService(tagRepository, checkInRepository, taskRepository)
+        val reminderService = SleepReminderService(this)
 
         // T4: App 启动时自动同步缺失周期
         val syncService = PeriodSyncService(
@@ -68,7 +70,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyDiaryTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScaffold(tagRepository, checkInRepository, taskRepository, transferService)
+                    MainScaffold(tagRepository, checkInRepository, taskRepository, transferService, reminderService)
                 }
             }
         }
@@ -81,6 +83,7 @@ private fun MainScaffold(
     checkInRepository: com.example.mydiary.data.CheckInRepository,
     taskRepository: com.example.mydiary.data.TaskRepository,
     transferService: DataTransferService,
+    reminderService: SleepReminderService,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -134,6 +137,7 @@ private fun MainScaffold(
             )
             3 -> SettingsScreen(
                 transferService = transferService,
+                reminderService = reminderService,
                 scope = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycleScope,
                 modifier = Modifier.padding(innerPadding),
             )

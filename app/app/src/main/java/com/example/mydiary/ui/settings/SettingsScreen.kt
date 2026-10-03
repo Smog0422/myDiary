@@ -2,14 +2,14 @@ package com.example.mydiary.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,21 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.mydiary.data.DataTransferService
-import com.example.mydiary.data.ImportValidationException
+import com.example.mydiary.data.SleepReminderService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * 设置页：JSON 导出/导入。
+ * 设置页：JSON/SQL 导出、导入、睡前提醒开关。
  */
 @Composable
 fun SettingsScreen(
     transferService: DataTransferService,
+    reminderService: SleepReminderService,
     scope: CoroutineScope,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var statusMessage by remember { mutableStateOf("") }
+    var reminderEnabled by remember { mutableStateOf(reminderService.isEnabled()) }
 
     Scaffold { padding ->
         Column(
@@ -46,58 +48,87 @@ fun SettingsScreen(
         ) {
             Text("设置", style = MaterialTheme.typography.titleMedium)
 
+            // 导出
+            Text("导出", style = MaterialTheme.typography.titleSmall)
+
             Button(
                 onClick = {
                     scope.launch {
                         try {
                             val json = transferService.exportJson()
-                            // 通过 ShareSheet 分享文件
-                            val uri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                java.io.File(context.filesDir, "mydiary_export.json").apply {
-                                    writeText(json)
-                                }
-                            )
-                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                type = "application/json"
-                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                                context.startActivity(
-                                    android.content.Intent.createChooser(intent, "导出 MyDiary 数据")
-                                )
-                            statusMessage = "导出成功"
+                            shareFile(context, "mydiary_export.json", json, "application/json")
+                            statusMessage = "JSON 导出成功"
                         } catch (e: Exception) {
-                            statusMessage = "导出失败：${e.message ?: "未知错误"}"
+                            statusMessage = "导出失败：${e.message}"
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("导出数据（JSON）")
-            }
+            ) { Text("导出 JSON") }
 
             Button(
                 onClick = {
                     scope.launch {
                         try {
-                            // 简化：从剪贴板或文件选择器读取
-                            // 完整实现需要 ActivityResultContracts
-                            statusMessage = "导入功能需要文件选择器（后续完善）"
-                        } catch (e: ImportValidationException) {
-                            statusMessage = e.message ?: "导入失败"
+                            val sql = transferService.exportSql()
+                            shareFile(context, "mydiary_export.sql", sql, "application/sql")
+                            statusMessage = "SQL 导出成功"
+                        } catch (e: Exception) {
+                            statusMessage = "导出失败：${e.message}"
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
+            ) { Text("导出 SQL") }
+
+            // 导入
+            Button(
+                onClick = {
+                    statusMessage = "导入功能需要文件选择器（后续完善）"
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("导入 JSON") }
+
+            // 睡前提醒
+            Text("提醒", style = MaterialTheme.typography.titleSmall)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Text("导入数据（JSON）")
+                Text(
+                    "睡前提醒（默认 22:00）",
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = reminderEnabled,
+                    onCheckedChange = { enabled ->
+                        reminderEnabled = enabled
+                        reminderService.setEnabled(enabled)
+                    },
+                )
             }
 
+            // 状态消息
             if (statusMessage.isNotEmpty()) {
                 Text(statusMessage, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
+}
+
+private fun shareFile(context: android.content.Context, filename: String, content: String, mimeType: String) {
+    val file = java.io.File(context.filesDir, filename)
+    file.writeText(content)
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = mimeType
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "分享 $filename"))
 }
