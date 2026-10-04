@@ -1,5 +1,7 @@
 package com.example.mydiary.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,30 @@ fun SettingsScreen(
     val context = LocalContext.current
     var statusMessage by remember { mutableStateOf("") }
     var reminderEnabled by remember { mutableStateOf(reminderService.isEnabled()) }
+
+    // 导入文件选择器（json / sql）
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: android.net.Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                    ?: throw Exception("无法读取文件内容")
+                val count = when {
+                    uri.path?.lowercase()?.endsWith(".sql") == true -> transferService.importSql(text)
+                    else -> transferService.importJson(text)
+                }
+                statusMessage = "导入成功，共 $count 条记录"
+            } catch (e: Exception) {
+                statusMessage = "导入失败：${e.message}"
+            }
+        }
+    }
+
+    fun pickImportFile(mimeTypes: Array<String>) {
+        importLauncher.launch(mimeTypes)
+    }
 
     Scaffold { padding ->
         Column(
@@ -83,11 +109,14 @@ fun SettingsScreen(
 
             // 导入
             Button(
-                onClick = {
-                    statusMessage = "导入功能需要文件选择器（后续完善）"
-                },
+                onClick = { pickImportFile(arrayOf("application/json")) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("导入 JSON") }
+
+            Button(
+                onClick = { pickImportFile(arrayOf("application/sql", "text/plain")) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("导入 SQL") }
 
             // 睡前提醒
             Text("提醒", style = MaterialTheme.typography.titleSmall)

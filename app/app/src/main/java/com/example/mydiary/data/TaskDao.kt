@@ -3,6 +3,7 @@ package com.example.mydiary.data
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +12,10 @@ import kotlinx.coroutines.flow.Flow
 interface TaskTemplateDao {
     @Insert
     suspend fun insert(template: TaskTemplate): Long
+
+    /** 导入用：主键冲突时替换 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(template: TaskTemplate)
 
     @Update
     suspend fun update(template: TaskTemplate)
@@ -44,6 +49,10 @@ interface TaskItemDao {
 interface TaskInstanceDao {
     @Insert
     suspend fun insert(instance: TaskInstance): Long
+
+    /** 导入用：主键冲突时替换 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(instance: TaskInstance)
 
     @Update
     suspend fun update(instance: TaskInstance)

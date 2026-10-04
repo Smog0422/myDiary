@@ -289,11 +289,11 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun importTemplate(id: Int, period: String, name: String, triggerDay: Int, backfill: Boolean, active: Boolean, hidden: Boolean) {
-        templateDao.insert(TaskTemplate(id = id, period = period, name = name, triggerDay = triggerDay, backfill = backfill, active = active, hidden = hidden))
+        templateDao.upsert(TaskTemplate(id = id, period = period, name = name, triggerDay = triggerDay, backfill = backfill, active = active, hidden = hidden))
     }
 
     override suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean) {
-        instanceDao.insert(TaskInstance(id = id, templateId = templateId, periodKey = periodKey, title = title, sortOrder = sortOrder, done = done))
+        instanceDao.upsert(TaskInstance(id = id, templateId = templateId, periodKey = periodKey, title = title, sortOrder = sortOrder, done = done))
     }
 
     private suspend fun withTemplate(id: Int, block: suspend (TaskTemplate) -> Unit) {

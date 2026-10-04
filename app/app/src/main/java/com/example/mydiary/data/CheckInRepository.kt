@@ -35,6 +35,6 @@ class CheckInRepositoryImpl(private val dao: CheckInDao) : CheckInRepository {
     }
 
     override suspend fun importCheckIn(id: Int, tagId: Int?, note: String?, timestamp: Long) {
-        dao.insert(CheckIn(id = id.toLong(), tagId = tagId, note = note, timestamp = timestamp))
+        dao.upsert(CheckIn(id = id.toLong(), tagId = tagId, note = note, timestamp = timestamp))
     }
 }
