@@ -387,7 +387,7 @@ private fun TaskListItemCard(
     onDelete: () -> Unit,
 ) {
     val isWeekly = template.period == "weekly"
-    val iconColor = if (isWeekly) Color(0xFF4A6741) else Color(0xFF8B6F47)
+    val iconColor = MaterialTheme.colorScheme.primary
 
     Row(
         modifier = Modifier
@@ -432,7 +432,7 @@ private fun TaskListItemCard(
                     // 开启/停止
                     StatusBadge(text = if (template.active) "✓" else "⏸", active = template.active)
                     // 追溯
-                    if (template.backfill) StatusBadge(text = "追溯", active = true, color = Color(0xFF3D6F8E))
+                    if (template.backfill) StatusBadge(text = "追溯", active = true, color = MaterialTheme.colorScheme.secondary)
                 }
             }
         }
@@ -462,17 +462,18 @@ private fun TaskListItemCard(
 }
 
 @Composable
-private fun StatusBadge(text: String, active: Boolean, color: Color = Color(0xFF4A6741)) {
+private fun StatusBadge(text: String, active: Boolean, color: Color? = null) {
+    val badgeColor = color ?: MaterialTheme.colorScheme.secondary
     Box(
         modifier = Modifier
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-            .background(if (active) color.copy(alpha = 0.15f) else Color(0xFF999999).copy(alpha = 0.1f))
+            .background(if (active) badgeColor.copy(alpha = 0.15f) else Color(0xFF999999).copy(alpha = 0.1f))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = if (active) color else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (active) badgeColor else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

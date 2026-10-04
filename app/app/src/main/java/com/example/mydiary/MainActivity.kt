@@ -47,7 +47,9 @@ import com.example.mydiary.ui.settings.SettingsScreen
 import com.example.mydiary.ui.stats.StatsScreen
 import com.example.mydiary.ui.tags.TagManagementScreen
 import com.example.mydiary.ui.theme.AppTheme
+import com.example.mydiary.ui.theme.BackgroundGradient
 import com.example.mydiary.ui.theme.MyDiaryTheme
+import com.example.mydiary.ui.theme.getThemeColors
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -89,19 +91,22 @@ class MainActivity : ComponentActivity() {
             val darkTheme = darkFlag == 1
 
             MyDiaryTheme(theme = appTheme, darkTheme = darkTheme) {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MainScaffold(
-                        tagRepository = tagRepository,
-                        checkInRepository = checkInRepository,
-                        taskRepository = taskRepository,
-                        syncService = syncService,
-                        transferService = transferService,
-                        reminderService = reminderService,
-                        appTheme = appTheme,
-                        darkTheme = darkTheme,
-                        onToggleDarkTheme = { darkFlag = if (darkFlag == 1) 0 else 1 },
-                        onSelectTheme = { t -> themeFlag = t },
-                    )
+                val themeColors = getThemeColors(appTheme, darkTheme)
+                BackgroundGradient(colors = themeColors) {
+                    Surface(modifier = Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) {
+                        MainScaffold(
+                            tagRepository = tagRepository,
+                            checkInRepository = checkInRepository,
+                            taskRepository = taskRepository,
+                            syncService = syncService,
+                            transferService = transferService,
+                            reminderService = reminderService,
+                            appTheme = appTheme,
+                            darkTheme = darkTheme,
+                            onToggleDarkTheme = { darkFlag = if (darkFlag == 1) 0 else 1 },
+                            onSelectTheme = { t -> themeFlag = t },
+                        )
+                    }
                 }
             }
         }
