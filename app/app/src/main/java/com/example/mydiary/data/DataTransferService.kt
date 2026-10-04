@@ -36,7 +36,8 @@ class DataTransferService(
         }))
         root.put("taskInstances", JSONArray(instances.map {
             JSONObject().put("id", it.id).put("templateId", it.templateId)
-                .put("periodKey", it.periodKey).put("title", it.title).put("done", it.done)
+                .put("periodKey", it.periodKey).put("title", it.title)
+                .put("sortOrder", it.sortOrder).put("done", it.done)
         }))
         return root.toString(2)
     }

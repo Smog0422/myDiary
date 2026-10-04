@@ -40,7 +40,9 @@ fun SettingsScreen(
     var statusMessage by remember { mutableStateOf("") }
     var reminderEnabled by remember { mutableStateOf(reminderService.isEnabled()) }
 
-    // 导入文件选择器（json / sql）
+    // 导入文件选择器：按按钮来源标记类型，不依赖 URI 猜测
+    var pendingImportType by remember { mutableStateOf("") }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: android.net.Uri? ->
@@ -49,9 +51,10 @@ fun SettingsScreen(
             try {
                 val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
                     ?: throw Exception("无法读取文件内容")
-                val count = when {
-                    uri.path?.lowercase()?.endsWith(".sql") == true -> transferService.importSql(text)
-                    else -> transferService.importJson(text)
+                val count = if (pendingImportType == "sql") {
+                    transferService.importSql(text)
+                } else {
+                    transferService.importJson(text)
                 }
                 statusMessage = "导入成功，共 $count 条记录"
             } catch (e: Exception) {
@@ -60,7 +63,8 @@ fun SettingsScreen(
         }
     }
 
-    fun pickImportFile(mimeTypes: Array<String>) {
+    fun pickImportFile(importType: String, mimeTypes: Array<String>) {
+        pendingImportType = importType
         importLauncher.launch(mimeTypes)
     }
 
@@ -109,12 +113,12 @@ fun SettingsScreen(
 
             // 导入
             Button(
-                onClick = { pickImportFile(arrayOf("application/json")) },
+                onClick = { pickImportFile("json", arrayOf("application/json")) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("导入 JSON") }
 
             Button(
-                onClick = { pickImportFile(arrayOf("application/sql", "text/plain")) },
+                onClick = { pickImportFile("sql", arrayOf("application/sql", "text/plain")) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("导入 SQL") }
 
