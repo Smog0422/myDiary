@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -12,7 +14,7 @@ android {
     }
 
     room {
-        schemaDirectory("$buildDir/schemas")
+        schemaDirectory(layout.buildDirectory.dir("schemas").get().asFile.absolutePath)
     }
 
     defaultConfig {
@@ -25,8 +27,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = File(rootDir.parentFile, "mydiary-release.jks")
+            storePassword = property("MYDIARY_RELEASE_STORE_PASSWORD").toString()
+            keyAlias = property("MYDIARY_RELEASE_KEY_ALIAS").toString()
+            keyPassword = property("MYDIARY_RELEASE_KEY_PASSWORD").toString()
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

@@ -1,0 +1,4 @@
+# release signing (contains passwords)
+app/gradle.properties
+*.jks
+
