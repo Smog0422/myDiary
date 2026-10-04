@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
             .build()
         val tagRepository = TagRepositoryImpl(database.tagDao())
         val checkInRepository = CheckInRepositoryImpl(database.checkInDao())
+        // 先建占位 Repository，再建 SyncService，最后回填（解决循环依赖）
         val taskRepository = TaskRepositoryImpl(
             database,
             database.taskTemplateDao(),
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
             taskRepository = taskRepository,
             templateProvider = { taskRepository.observeTemplates().first() },
         )
+        taskRepository.attachSyncService(syncService)
         lifecycleScope.launch { syncService.sync() }
 
         setContent {

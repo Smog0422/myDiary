@@ -188,10 +188,8 @@ fun HomeScreen(
 }
 
 /**
- * 任务区块：标题 + 任务项列表（带勾选框）。
- */
-/**
- * 分区卡片：标题 + 进度徽章 + 任务列表 + 进度条。
+ * 分区卡片：标题 + 进度徽章（可点击，展开已完成）+ 未完成列表 + 进度条。
+ * 已完成项收纳进弹窗展示，默认不占列表空间。
  */
 @Composable
 private fun HomeTaskCard(
@@ -204,6 +202,11 @@ private fun HomeTaskCard(
     val totalCount = instances.size
     val progress = if (totalCount > 0) doneCount.toFloat() / totalCount else 0f
 
+    // 已完成任务收纳弹窗
+    var showCompletedDialog by remember { mutableStateOf(false) }
+    // 默认只展示未完成项，已完成收纳进弹窗
+    val pendingInstances = instances.filter { !it.done }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,7 +214,7 @@ private fun HomeTaskCard(
             .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp),
     ) {
-        // 标题行：标题 + 进度徽章
+        // 标题行：标题 + 进度徽章（可点击，展开已完成）
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -219,17 +222,33 @@ private fun HomeTaskCard(
         ) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             if (totalCount > 0) {
-                Box(
+                // 整个容器可点击（doneCount>0 时）：小字"点击查看已完成" + n/t 徽章
+                Row(
                     modifier = Modifier
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                        .then(if (doneCount > 0) Modifier.clickable { showCompletedDialog = true } else Modifier),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "$doneCount/$totalCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    if (doneCount > 0) {
+                        Text(
+                            text = "点击查看已完成",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "$doneCount/$totalCount",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
@@ -241,8 +260,16 @@ private fun HomeTaskCard(
             return
         }
 
-        // 任务列表
-        instances.forEach { instance ->
+        if (pendingInstances.isEmpty()) {
+            Text(
+                "🎉 全部完成",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        // 任务列表（只显示未完成项）
+        pendingInstances.forEach { instance ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -289,6 +316,61 @@ private fun HomeTaskCard(
             )
         }
     }
+
+    // 已完成任务收纳弹窗
+    if (showCompletedDialog) {
+        CompletedTasksDialog(
+            instances = instances.filter { it.done },
+            onToggle = onToggle,
+            onDismiss = { showCompletedDialog = false },
+        )
+    }
+}
+
+/**
+ * 已完成任务弹窗：列出已完成的子事件，可取消勾选（回到未完成）。
+ */
+@Composable
+private fun CompletedTasksDialog(
+    instances: List<TaskInstance>,
+    onToggle: (TaskInstance) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("已完成 (${instances.size})") },
+        text = {
+            if (instances.isEmpty()) {
+                Text("暂无已完成任务")
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    instances.forEach { instance ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = true, onCheckedChange = { onToggle(instance) })
+                            Text(
+                                text = instance.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) { Text("关闭") }
+        },
+    )
 }
 
 /**

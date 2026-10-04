@@ -6,13 +6,13 @@ import kotlinx.coroutines.flow.first
 
 /**
  * 周期自动同步：按模板的触发日规则检查并生成实例。
- * 在 App 启动时调用（MainActivity.onCreate）。
+ * 在 App 启动时（MainActivity.onCreate）和保存模板后调用，逻辑统一。
  *
- * V2 规则：
+ * 触发规则（只针对当前周期，绝不跨周/跨月）：
  * - hidden 或 !active → 跳过
  * - 已有实例 → 跳过（幂等）
- * - backfill=false 且今天 < 本周期触发日 → 跳过
- * - 否则生成
+ * - backfill=true：今天 ≥ 本周期触发日 → 生成（允许本周内"迟到"补上）
+ * - backfill=false：今天 == 本周期触发日当天 → 生成；过了触发日没开 App，本周不再生成
  */
 class PeriodSyncService(
     private val taskRepository: TaskRepository,
@@ -20,7 +20,7 @@ class PeriodSyncService(
 ) {
 
     /**
-     * 同步所有模板的缺失周期。
+     * 同步所有模板的当前周期。
      * @return 生成的实例总数
      */
     suspend fun sync(): Int {
@@ -41,7 +41,7 @@ class PeriodSyncService(
     /**
      * 判断是否应该为 [template] 生成当前周期的实例。
      */
-    private suspend fun shouldGenerate(template: TaskTemplate, today: LocalDate): Boolean {
+    suspend fun shouldGenerate(template: TaskTemplate, today: LocalDate): Boolean {
         // 停止或隐藏 → 不生成
         if (!template.active || template.hidden) return false
 
@@ -51,10 +51,14 @@ class PeriodSyncService(
         val existing = taskRepository.observeInstancesByPeriod(periodKey).first()
         if (existing.any { it.templateId == template.id }) return false
 
-        // 追溯控制：backfill=false 且今天还没到触发日 → 跳过
-        if (!template.backfill) {
-            val triggerDate = triggerDateInCurrentPeriod(template, today)
+        val triggerDate = triggerDateInCurrentPeriod(template, today)
+
+        if (template.backfill) {
+            // 追溯开启：本周内迟到可补（今天 ≥ 触发日）
             if (today.isBefore(triggerDate)) return false
+        } else {
+            // 追溯关闭：必须当天打开才生成
+            if (!today.isEqual(triggerDate)) return false
         }
 
         return true

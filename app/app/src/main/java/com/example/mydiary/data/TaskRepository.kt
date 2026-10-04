@@ -95,6 +95,14 @@ class TaskRepositoryImpl(
     private val instanceDao: TaskInstanceDao,
 ) : TaskRepository {
 
+    /** 由 MainActivity 在创建 PeriodSyncService 后回填，避免循环依赖 */
+    var syncService: PeriodSyncService? = null
+        private set
+
+    fun attachSyncService(service: PeriodSyncService) {
+        syncService = service
+    }
+
     override fun observeTemplates(): Flow<List<TaskTemplate>> = templateDao.observeAll()
 
     override fun observeVisibleTemplates(): Flow<List<TaskTemplate>> =
@@ -178,38 +186,11 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun syncAfterSave(templateId: Int) {
-        val t = observeTemplates().first().find { it.id == templateId } ?: return
-        if (!t.active || t.hidden) return
-
-        val today = java.time.LocalDate.now()
-
-        // 1. 当前周期：始终尝试生成（幂等）
-        val currentKey = if (t.period == "weekly") {
-            PeriodGenerator.weekKey(today)
-        } else {
-            PeriodGenerator.monthKey(today)
-        }
-        generateFromTemplate(templateId, currentKey)
-
-        // 2. 追溯：补生成历史周期（从本周期前一周/月前一个月开始，最多回溯 8 个周期）
-        if (t.backfill) {
-            var date = today
-            repeat(8) {
-                // 回退一个周期
-                date = if (t.period == "weekly") {
-                    date.minusWeeks(1)
-                } else {
-                    date.minusMonths(1)
-                }
-                val pastKey = if (t.period == "weekly") {
-                    PeriodGenerator.weekKey(date)
-                } else {
-                    PeriodGenerator.monthKey(date)
-                }
-                // 幂等：已有实例则跳过
-                generateFromTemplate(templateId, pastKey)
-            }
-        }
+        // 走与启动时同一套触发规则（PeriodSyncService.shouldGenerate）：
+        // - backfill=true：今天 ≥ 本周期触发日 → 生成本周/本月
+        // - backfill=false：必须当天打开才生成
+        // 绝不跨周/跨月补生成历史周期。
+        syncService?.sync()
     }
 
     override suspend fun saveTemplateWithItems(
