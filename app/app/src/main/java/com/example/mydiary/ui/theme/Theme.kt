@@ -1,53 +1,57 @@
 package com.example.mydiary.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
 
 @Composable
 fun MyDiaryTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    theme: AppTheme,
+    darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val colors = getThemeColors(theme, darkTheme)
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val colorScheme = if (darkTheme) {
+        darkColorScheme(
+            primary = colors.primary,
+            secondary = colors.accent,
+            tertiary = colors.textSecondary,
+            background = colors.background,
+            surface = colors.surface,
+            onPrimary = colors.onPrimary,
+            onSecondary = colors.onPrimary,
+            onBackground = colors.text,
+            onSurface = colors.text,
+        )
+    } else {
+        lightColorScheme(
+            primary = colors.primary,
+            secondary = colors.accent,
+            tertiary = colors.textSecondary,
+            background = colors.background,
+            surface = colors.surface,
+            onPrimary = colors.onPrimary,
+            onSecondary = colors.onPrimary,
+            onBackground = colors.text,
+            onSurface = colors.text,
+        )
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            val bg = colors.background
+            val r = (bg.red * 255).toInt()
+            val g = (bg.green * 255).toInt()
+            val b = (bg.blue * 255).toInt()
+            window.statusBarColor = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        }
     }
 
     MaterialTheme(

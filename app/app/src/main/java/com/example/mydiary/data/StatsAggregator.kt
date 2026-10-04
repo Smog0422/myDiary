@@ -2,6 +2,7 @@ package com.example.mydiary.data
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
 
@@ -57,22 +58,25 @@ object StatsAggregator {
     /**
      * 计算 [reference] 所属时间范围的 [start, end) 毫秒边界。
      */
-    fun rangeFor(granularity: Granularity, reference: LocalDate): Pair<Long, Long> = when (granularity) {
-        Granularity.WEEK -> {
-            val monday = reference.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            val sunday = monday.plusDays(6)
-            Pair(monday.atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
-                 sunday.plusDays(1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli())
-        }
-        Granularity.MONTH -> {
-            val ym = YearMonth.from(reference)
-            Pair(ym.atDay(1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
-                 ym.plusMonths(1).atDay(1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli())
-        }
-        Granularity.YEAR -> {
-            val year = reference.year
-            Pair(LocalDate.of(year, 1, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
-                 LocalDate.of(year + 1, 1, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC).toEpochMilli())
+    fun rangeFor(granularity: Granularity, reference: LocalDate): Pair<Long, Long> {
+        val zone = ZoneId.systemDefault()
+        return when (granularity) {
+            Granularity.WEEK -> {
+                val monday = reference.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                val nextMonday = monday.plusWeeks(1)
+                Pair(monday.atStartOfDay(zone).toInstant().toEpochMilli(),
+                     nextMonday.atStartOfDay(zone).toInstant().toEpochMilli())
+            }
+            Granularity.MONTH -> {
+                val ym = YearMonth.from(reference)
+                Pair(ym.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                     ym.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli())
+            }
+            Granularity.YEAR -> {
+                val year = reference.year
+                Pair(LocalDate.of(year, 1, 1).atStartOfDay(zone).toInstant().toEpochMilli(),
+                     LocalDate.of(year + 1, 1, 1).atStartOfDay(zone).toInstant().toEpochMilli())
+            }
         }
     }
 
@@ -80,14 +84,14 @@ object StatsAggregator {
      * 生成用于 UI 的周期标签文本，如"第 29 周""7 月""2026 年"。
      */
     fun periodLabel(granularity: Granularity, reference: LocalDate): String = when (granularity) {
-        Granularity.WEEK -> "第 ${weekNumber(reference)} 周"
+        Granularity.WEEK -> "${reference.year}年第 ${weekNumber(reference)} 周"
         Granularity.MONTH -> "${reference.monthValue} 月"
         Granularity.YEAR -> "${reference.year} 年"
     }
 
     private fun weekNumber(date: LocalDate): Int {
-        val monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val yearStart = LocalDate.of(monday.year, 1, 1)
-        return ((monday.dayOfYear - yearStart.dayOfYear) / 7) + 1
+        // 从 PeriodGenerator.weekKey() 提取周数，保证与同步服务一致
+        val key = PeriodGenerator.weekKey(date) // e.g. "2026-W29"
+        return key.substringAfterLast("W").toInt()
     }
 }

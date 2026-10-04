@@ -48,11 +48,14 @@ interface TaskInstanceDao {
     @Update
     suspend fun update(instance: TaskInstance)
 
+    @Delete
+    suspend fun delete(instance: TaskInstance)
+
     @Query("SELECT * FROM task_instances WHERE periodKey = :periodKey ORDER BY sortOrder ASC")
     fun observeByPeriod(periodKey: String): Flow<List<TaskInstance>>
 
-    @Query("SELECT * FROM task_instances WHERE templateId = :templateId AND periodKey = :periodKey")
-    suspend fun getByTemplateAndPeriod(templateId: Int, periodKey: String): TaskInstance?
+    @Query("SELECT COUNT(*) FROM task_instances WHERE templateId = :templateId AND periodKey = :periodKey")
+    suspend fun countByTemplateAndPeriod(templateId: Int, periodKey: String): Int
 
     @Query("SELECT * FROM task_instances ORDER BY periodKey DESC, sortOrder ASC")
     fun observeAll(): Flow<List<TaskInstance>>

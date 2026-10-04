@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Tag::class, CheckIn::class, TaskTemplate::class, TaskItem::class, TaskInstance::class],
-    version = 3,
+    version = 5,
     exportSchema = true,
 )
 abstract class MyDiaryDatabase : RoomDatabase() {
@@ -66,6 +66,22 @@ abstract class MyDiaryDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS `index_task_instances_templateId_periodKey` ON `task_instances` (`templateId`, `periodKey`)"
                 )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `task_templates` ADD COLUMN `triggerDay` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE `task_templates` ADD COLUMN `backfill` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `task_templates` ADD COLUMN `active` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE `task_templates` ADD COLUMN `hidden` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 去掉 (templateId, periodKey) 唯一索引：一个模板在一个周期可以有多个实例（每个子事件一条）
+                db.execSQL("DROP INDEX IF EXISTS `index_task_instances_templateId_periodKey`")
             }
         }
     }

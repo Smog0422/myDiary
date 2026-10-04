@@ -31,6 +31,8 @@ class DataTransferService(
         }))
         root.put("taskTemplates", JSONArray(templates.map {
             JSONObject().put("id", it.id).put("period", it.period).put("name", it.name)
+                .put("triggerDay", it.triggerDay).put("backfill", it.backfill)
+                .put("active", it.active).put("hidden", it.hidden)
         }))
         root.put("taskInstances", JSONArray(instances.map {
             JSONObject().put("id", it.id).put("templateId", it.templateId)
@@ -82,6 +84,33 @@ class DataTransferService(
         for (i in 0 until ciArr.length()) {
             val obj = ciArr.getJSONObject(i)
             checkInRepository.importCheckIn(obj.getInt("id"), if (obj.isNull("tagId")) null else obj.getInt("tagId"), if (obj.isNull("note")) null else obj.getString("note"), obj.getLong("timestamp"))
+            count++
+        }
+        val tplArr = root.getJSONArray("taskTemplates")
+        for (i in 0 until tplArr.length()) {
+            val obj = tplArr.getJSONObject(i)
+            taskRepository.importTemplate(
+                obj.getInt("id"),
+                obj.getString("period"),
+                obj.getString("name"),
+                obj.optInt("triggerDay", 1),
+                obj.optBoolean("backfill", false),
+                obj.optBoolean("active", true),
+                obj.optBoolean("hidden", false),
+            )
+            count++
+        }
+        val instArr = root.getJSONArray("taskInstances")
+        for (i in 0 until instArr.length()) {
+            val obj = instArr.getJSONObject(i)
+            taskRepository.importInstance(
+                obj.getInt("id"),
+                obj.getInt("templateId"),
+                obj.getString("periodKey"),
+                obj.getString("title"),
+                obj.optInt("sortOrder", 0),
+                obj.optBoolean("done", false),
+            )
             count++
         }
         return count

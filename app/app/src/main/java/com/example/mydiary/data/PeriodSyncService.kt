@@ -1,12 +1,18 @@
 package com.example.mydiary.data
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 
 /**
- * 周期自动同步：检查缺失周期并从模板生成实例。
+ * 周期自动同步：按模板的触发日规则检查并生成实例。
  * 在 App 启动时调用（MainActivity.onCreate）。
- * WorkManager 作为后台双保险（T4 后续加入）。
+ *
+ * V2 规则：
+ * - hidden 或 !active → 跳过
+ * - 已有实例 → 跳过（幂等）
+ * - backfill=false 且今天 < 本周期触发日 → 跳过
+ * - 否则生成
  */
 class PeriodSyncService(
     private val taskRepository: TaskRepository,
@@ -25,23 +31,58 @@ class PeriodSyncService(
         var totalGenerated = 0
 
         for (template in templates) {
-            val periodKeys = when (template.period) {
-                "weekly" -> PeriodGenerator.missingWeeks(today, existingPeriodKeys(template.id))
-                "monthly" -> PeriodGenerator.missingMonths(today, existingPeriodKeys(template.id))
-                else -> emptyList()
-            }
-
-            for (periodKey in periodKeys) {
-                totalGenerated += taskRepository.generateFromTemplate(template.id, periodKey)
-            }
+            if (!shouldGenerate(template, today)) continue
+            val periodKey = currentPeriodKey(template, today)
+            totalGenerated += taskRepository.generateFromTemplate(template.id, periodKey)
         }
         return totalGenerated
     }
 
-    private suspend fun existingPeriodKeys(templateId: Int): Set<String> {
-        // 查询该模板已有的所有 periodKey
-        // 简化：通过 observeAll 过滤（数据量小，个人工具可接受）
-        val allInstances = taskRepository.observeAllInstances().first()
-        return allInstances.filter { it.templateId == templateId }.map { it.periodKey }.toSet()
+    /**
+     * 判断是否应该为 [template] 生成当前周期的实例。
+     */
+    private suspend fun shouldGenerate(template: TaskTemplate, today: LocalDate): Boolean {
+        // 停止或隐藏 → 不生成
+        if (!template.active || template.hidden) return false
+
+        val periodKey = currentPeriodKey(template, today)
+
+        // 幂等：已有实例则跳过
+        val existing = taskRepository.observeInstancesByPeriod(periodKey).first()
+        if (existing.any { it.templateId == template.id }) return false
+
+        // 追溯控制：backfill=false 且今天还没到触发日 → 跳过
+        if (!template.backfill) {
+            val triggerDate = triggerDateInCurrentPeriod(template, today)
+            if (today.isBefore(triggerDate)) return false
+        }
+
+        return true
+    }
+
+    /**
+     * 计算模板当前周期的 periodKey。
+     */
+    private fun currentPeriodKey(template: TaskTemplate, today: LocalDate): String {
+        return if (template.period == "weekly") {
+            PeriodGenerator.weekKey(today)
+        } else {
+            PeriodGenerator.monthKey(today)
+        }
+    }
+
+    /**
+     * 计算本周期内触发日对应的日期。
+     * 周任务：本周一 + (triggerDay - 1) 天
+     * 月任务：本月 triggerDay 号
+     */
+    private fun triggerDateInCurrentPeriod(template: TaskTemplate, today: LocalDate): LocalDate {
+        return if (template.period == "weekly") {
+            val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            monday.plusDays((template.triggerDay - 1).toLong())
+        } else {
+            val day = template.triggerDay.coerceIn(1, 28)
+            today.withDayOfMonth(day)
+        }
     }
 }

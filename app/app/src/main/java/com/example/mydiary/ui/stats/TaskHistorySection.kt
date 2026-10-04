@@ -22,11 +22,11 @@ fun TaskHistorySection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text("任务历史", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        Text("往期任务", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (history.isEmpty()) {
-            Text("暂无过期周期", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            Text("暂无往期数据", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             return
         }
 
