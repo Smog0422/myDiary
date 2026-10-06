@@ -26,4 +26,7 @@ data class TaskInstance(
     /** 是否已完成 */
     @ColumnInfo(defaultValue = "0")
     val done: Boolean = false,
+    /** 完成时间戳（ms）；未完成 = null。v1.1.0 新增。 */
+    @ColumnInfo(name = "completedAt")
+    val completedAt: Long? = null,
 )

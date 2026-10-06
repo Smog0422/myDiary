@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Tag::class, CheckIn::class, TaskTemplate::class, TaskItem::class, TaskInstance::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class MyDiaryDatabase : RoomDatabase() {
@@ -82,6 +82,13 @@ abstract class MyDiaryDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // 去掉 (templateId, periodKey) 唯一索引：一个模板在一个周期可以有多个实例（每个子事件一条）
                 db.execSQL("DROP INDEX IF EXISTS `index_task_instances_templateId_periodKey`")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // v1.1.0：新增 completedAt 字段，默认值 = 2026-10-06 12:00:00 (ms)
+                db.execSQL("ALTER TABLE `task_instances` ADD COLUMN `completedAt` INTEGER DEFAULT 1791364800000")
             }
         }
     }

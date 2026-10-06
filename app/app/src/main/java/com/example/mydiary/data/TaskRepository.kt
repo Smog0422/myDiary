@@ -85,7 +85,7 @@ interface TaskRepository {
     /** 永久删除一条任务实例（不可恢复） */
     suspend fun deleteInstance(instance: TaskInstance)
     suspend fun importTemplate(id: Int, period: String, name: String, triggerDay: Int = 1, backfill: Boolean = false, active: Boolean = true, hidden: Boolean = false)
-    suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean)
+    suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean, completedAt: Long? = null)
 }
 
 class TaskRepositoryImpl(
@@ -262,7 +262,13 @@ class TaskRepositoryImpl(
     }
 
     override suspend fun toggleDone(instance: TaskInstance) {
-        instanceDao.update(instance.copy(done = !instance.done))
+        val newDone = !instance.done
+        instanceDao.update(
+            instance.copy(
+                done = newDone,
+                completedAt = if (newDone) System.currentTimeMillis() else null,
+            )
+        )
     }
 
     override suspend fun deleteInstance(instance: TaskInstance) {
@@ -273,8 +279,8 @@ class TaskRepositoryImpl(
         templateDao.upsert(TaskTemplate(id = id, period = period, name = name, triggerDay = triggerDay, backfill = backfill, active = active, hidden = hidden))
     }
 
-    override suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean) {
-        instanceDao.upsert(TaskInstance(id = id, templateId = templateId, periodKey = periodKey, title = title, sortOrder = sortOrder, done = done))
+    override suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean, completedAt: Long?) {
+        instanceDao.upsert(TaskInstance(id = id, templateId = templateId, periodKey = periodKey, title = title, sortOrder = sortOrder, done = done, completedAt = completedAt))
     }
 
     private suspend fun withTemplate(id: Int, block: suspend (TaskTemplate) -> Unit) {

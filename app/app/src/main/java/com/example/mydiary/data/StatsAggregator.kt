@@ -22,7 +22,7 @@ object StatsAggregator {
         val count: Int,
     )
 
-    enum class Granularity { WEEK, MONTH, YEAR }
+    enum class Granularity { WEEK, MONTH, YEAR, CUSTOM }
 
     /**
      * 聚合指定粒度、以 [reference] 为锚点的时间范围内的打卡。
@@ -57,6 +57,7 @@ object StatsAggregator {
 
     /**
      * 计算 [reference] 所属时间范围的 [start, end) 毫秒边界。
+     * CUSTOM 模式由调用方自行传入范围，此方法不处理。
      */
     fun rangeFor(granularity: Granularity, reference: LocalDate): Pair<Long, Long> {
         val zone = ZoneId.systemDefault()
@@ -77,7 +78,30 @@ object StatsAggregator {
                 Pair(LocalDate.of(year, 1, 1).atStartOfDay(zone).toInstant().toEpochMilli(),
                      LocalDate.of(year + 1, 1, 1).atStartOfDay(zone).toInstant().toEpochMilli())
             }
+            Granularity.CUSTOM -> Pair(0L, 0L) // 由调用方处理
         }
+    }
+
+    /**
+     * 按指定 [start, end) 范围聚合打卡（供自定义范围使用）。
+     */
+    fun aggregateByRange(
+        checkIns: List<CheckIn>,
+        tagNames: Map<Int, String>,
+        start: Long,
+        end: Long,
+    ): List<TagCount> {
+        val inRange = checkIns.filter { it.timestamp in start..end }
+        if (inRange.isEmpty()) return emptyList()
+
+        val grouped = inRange.groupBy { it.tagId }
+        return grouped.map { (tagId, events) ->
+            TagCount(
+                tagId = tagId,
+                tagName = tagId?.let { tagNames[it] } ?: "已删除标签",
+                count = events.size,
+            )
+        }.sortedByDescending { it.count }
     }
 
     /**
@@ -87,6 +111,7 @@ object StatsAggregator {
         Granularity.WEEK -> "${reference.year}年第 ${weekNumber(reference)} 周"
         Granularity.MONTH -> "${reference.monthValue} 月"
         Granularity.YEAR -> "${reference.year} 年"
+        Granularity.CUSTOM -> "自定义范围"
     }
 
     private fun weekNumber(date: LocalDate): Int {

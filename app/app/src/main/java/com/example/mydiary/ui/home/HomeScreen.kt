@@ -3,6 +3,7 @@ package com.example.mydiary.ui.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +64,32 @@ fun HomeScreen(
 ) {
     val scope = rememberCoroutineScope()
     val tags by tagRepository.observeAll().collectAsState(initial = emptyList())
+
+    // 当月各标签打卡次数（冷启动算一次，用于排序）
+    val monthStart = remember {
+        java.time.LocalDate.now().withDayOfMonth(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+    var tagMonthCounts by remember { mutableStateOf(emptyMap<Int, Int>()) }
+    LaunchedEffect(monthStart) {
+        tagMonthCounts = checkInRepository.countByTagThisMonth(monthStart)
+    }
+
+    // 标签排序：当月次数 desc → 创建时间 desc（最新创建的排前面）
+    val sortedTags = remember(tags, tagMonthCounts) {
+        tags.sortedWith(
+            compareByDescending<Tag> { tagMonthCounts[it.id] ?: 0 }
+                .thenByDescending { it.createdAt }
+        )
+    }
+
+    // 今天已记录统计
+    val todayStart = remember {
+        java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+    val allCheckIns by checkInRepository.observeAll().collectAsState(initial = emptyList())
+    val todayCheckInCount = remember(allCheckIns, todayStart) {
+        allCheckIns.count { it.timestamp >= todayStart }
+    }
 
     // 当前周期标识（刷新后重新计算，跨周/跨月时自动切换）
     var periodKeys by remember { mutableStateOf(currentPeriodKeys()) }
@@ -115,7 +143,7 @@ fun HomeScreen(
                     onDelete = { inst -> deleteTarget = inst },
                 )
 
-                // 记一笔（宽矮 card）
+                // 记一笔（全量标签，智能排序）
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -129,21 +157,79 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (tags.isEmpty()) {
-                            Text("还没有标签，去管理页创建一个吧", style = MaterialTheme.typography.bodySmall)
+                    if (sortedTags.isEmpty()) {
+                        Text("还没有标签，去管理页创建一个吧", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            sortedTags.forEach { tag ->
+                                QuickCheckInButton(
+                                    tag = tag,
+                                    onClick = {
+                                        noteTargetTag = tag
+                                        showNoteDialog = true
+                                    },
+                                )
+                            }
                         }
-                        tags.take(6).forEach { tag ->
-                            QuickCheckInButton(
-                                tag = tag,
-                                onClick = {
-                                    noteTargetTag = tag
-                                    showNoteDialog = true
-                                },
-                            )
+                    }
+                }
+
+                // 今天已记录（只读 card，明细展示）
+                val tagMapHome = remember(tags) { tags.associateBy { it.id } }
+                val todayCheckIns = remember(allCheckIns, todayStart) {
+                    allCheckIns.filter { it.timestamp >= todayStart }
+                }
+                val todayDoneTasks = remember(weeklyTasks, monthlyTasks, todayStart) {
+                    (weeklyTasks + monthlyTasks).filter { it.done && (it.completedAt ?: 0L) >= todayStart }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.large)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        "今天已记录",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (todayCheckIns.isEmpty() && todayDoneTasks.isEmpty()) {
+                        Text("今天还没有记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        // 打卡明细：标签名 × N次
+                        if (todayCheckIns.isNotEmpty()) {
+                            val checkInByTag = todayCheckIns.groupBy { it.tagId }.mapValues { it.value.size }
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                checkInByTag.forEach { (tagId, count) ->
+                                    val tag = tagId?.let { tagMapHome[it] }
+                                    val tagName = tag?.name ?: "已删除"
+                                    Text(
+                                        "$tagName × $count",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (tag != null) Color(tag.color) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                        // 任务完成明细
+                        if (todayDoneTasks.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            todayDoneTasks.forEach { task ->
+                                Text(
+                                    "✓ ${task.title}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

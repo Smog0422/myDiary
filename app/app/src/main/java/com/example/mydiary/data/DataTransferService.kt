@@ -38,6 +38,7 @@ class DataTransferService(
             JSONObject().put("id", it.id).put("templateId", it.templateId)
                 .put("periodKey", it.periodKey).put("title", it.title)
                 .put("sortOrder", it.sortOrder).put("done", it.done)
+                .put("completedAt", it.completedAt ?: JSONObject.NULL)
         }))
         return root.toString(2)
     }
@@ -177,6 +178,7 @@ class DataTransferService(
                 obj.getString("title"),
                 obj.optInt("sortOrder", 0),
                 obj.optBoolean("done", false),
+                if (obj.has("completedAt") && !obj.isNull("completedAt")) obj.getLong("completedAt") else null,
             )
             count++
         }
