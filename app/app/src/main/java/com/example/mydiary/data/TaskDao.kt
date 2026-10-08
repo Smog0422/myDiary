@@ -35,6 +35,10 @@ interface TaskItemDao {
     @Insert
     suspend fun insert(item: TaskItem): Long
 
+    /** 导入用：主键冲突时替换 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(item: TaskItem)
+
     @Update
     suspend fun update(item: TaskItem)
 
@@ -43,6 +47,9 @@ interface TaskItemDao {
 
     @Query("SELECT * FROM task_items WHERE templateId = :templateId ORDER BY sortOrder ASC")
     fun observeByTemplate(templateId: Int): Flow<List<TaskItem>>
+
+    @Query("SELECT * FROM task_items ORDER BY templateId, sortOrder ASC")
+    fun observeAll(): Flow<List<TaskItem>>
 }
 
 @Dao
@@ -65,6 +72,9 @@ interface TaskInstanceDao {
 
     @Query("SELECT COUNT(*) FROM task_instances WHERE templateId = :templateId AND periodKey = :periodKey")
     suspend fun countByTemplateAndPeriod(templateId: Int, periodKey: String): Int
+
+    @Query("SELECT * FROM task_instances WHERE templateId = :templateId AND periodKey = :periodKey ORDER BY sortOrder ASC")
+    suspend fun getByTemplateAndPeriod(templateId: Int, periodKey: String): List<TaskInstance>
 
     @Query("SELECT * FROM task_instances ORDER BY periodKey DESC, sortOrder ASC")
     fun observeAll(): Flow<List<TaskInstance>>

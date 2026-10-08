@@ -264,10 +264,6 @@ fun HomeScreen(
                 scope.launch { checkInRepository.record(noteTargetTag!!.id, note) }
                 showNoteDialog = false
             },
-            onQuickRecord = {
-                scope.launch { checkInRepository.record(noteTargetTag!!.id, null) }
-                showNoteDialog = false
-            },
             onDismiss = { showNoteDialog = false },
         )
     }
@@ -488,7 +484,6 @@ private fun QuickCheckInButton(tag: Tag, onClick: () -> Unit) {
 private fun NoteDialog(
     tag: Tag,
     onConfirm: (String?) -> Unit,
-    onQuickRecord: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var note by remember { mutableStateOf("") }
@@ -509,10 +504,7 @@ private fun NoteDialog(
             }
         },
         confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onQuickRecord) { Text("直接记录") }
-                Button(onClick = { onConfirm(note.takeIf { it.isNotBlank() }) }) { Text("记录") }
-            }
+            Button(onClick = { onConfirm(note.takeIf { it.isNotBlank() }) }) { Text("记录") }
         },
         dismissButton = {
             OutlinedButton(onClick = onDismiss) { Text("取消") }

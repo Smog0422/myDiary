@@ -13,6 +13,8 @@ interface TaskRepository {
     fun observeTemplates(): Flow<List<TaskTemplate>>
     /** 可见模板（非隐藏） */
     fun observeVisibleTemplates(): Flow<List<TaskTemplate>>
+    /** 所有任务子事件配置 */
+    fun observeItems(): Flow<List<TaskItem>>
     /** 已隐藏模板 */
     fun observeHiddenTemplates(): Flow<List<TaskTemplate>>
     fun observeItems(templateId: Int): Flow<List<TaskItem>>
@@ -85,6 +87,7 @@ interface TaskRepository {
     /** 永久删除一条任务实例（不可恢复） */
     suspend fun deleteInstance(instance: TaskInstance)
     suspend fun importTemplate(id: Int, period: String, name: String, triggerDay: Int = 1, backfill: Boolean = false, active: Boolean = true, hidden: Boolean = false)
+    suspend fun importItem(id: Int, templateId: Int, title: String, sortOrder: Int)
     suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean, completedAt: Long? = null)
 }
 
@@ -107,6 +110,8 @@ class TaskRepositoryImpl(
 
     override fun observeVisibleTemplates(): Flow<List<TaskTemplate>> =
         templateDao.observeAll().map { list -> list.filter { !it.hidden } }
+
+    override fun observeItems(): Flow<List<TaskItem>> = itemDao.observeAll()
 
     override fun observeHiddenTemplates(): Flow<List<TaskTemplate>> =
         templateDao.observeAll().map { list -> list.filter { it.hidden } }
@@ -241,24 +246,28 @@ class TaskRepositoryImpl(
         instanceDao.observeAll()
 
     override suspend fun generateFromTemplate(templateId: Int, periodKey: String): Int {
-        // 幂等：该模板+周期已有实例则跳过
-        val existingCount = instanceDao.countByTemplateAndPeriod(templateId, periodKey)
-        if (existingCount > 0) return 0
+        // 增量补齐：只插入模板中新增的子事件，已有实例完全不动（保留 done/completedAt）
+        val existing = instanceDao.getByTemplateAndPeriod(templateId, periodKey)
+        val existingTitles = existing.map { it.title }.toSet()
 
         val items = itemDao.observeByTemplate(templateId).first()
+        var inserted = 0
         items.forEach { item ->
-            instanceDao.insert(
-                TaskInstance(
-                    id = 0,
-                    templateId = templateId,
-                    periodKey = periodKey,
-                    title = item.title,
-                    sortOrder = item.sortOrder,
-                    done = false,
+            if (item.title !in existingTitles) {
+                instanceDao.insert(
+                    TaskInstance(
+                        id = 0,
+                        templateId = templateId,
+                        periodKey = periodKey,
+                        title = item.title,
+                        sortOrder = item.sortOrder,
+                        done = false,
+                    )
                 )
-            )
+                inserted++
+            }
         }
-        return items.size
+        return inserted
     }
 
     override suspend fun toggleDone(instance: TaskInstance) {
@@ -277,6 +286,10 @@ class TaskRepositoryImpl(
 
     override suspend fun importTemplate(id: Int, period: String, name: String, triggerDay: Int, backfill: Boolean, active: Boolean, hidden: Boolean) {
         templateDao.upsert(TaskTemplate(id = id, period = period, name = name, triggerDay = triggerDay, backfill = backfill, active = active, hidden = hidden))
+    }
+
+    override suspend fun importItem(id: Int, templateId: Int, title: String, sortOrder: Int) {
+        itemDao.upsert(TaskItem(id = id, templateId = templateId, title = title, sortOrder = sortOrder))
     }
 
     override suspend fun importInstance(id: Int, templateId: Int, periodKey: String, title: String, sortOrder: Int, done: Boolean, completedAt: Long?) {

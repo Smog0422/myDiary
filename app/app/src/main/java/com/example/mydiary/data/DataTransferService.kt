@@ -18,6 +18,7 @@ class DataTransferService(
         val tags = tagRepository.observeAll().first()
         val checkIns = checkInRepository.observeAll().first()
         val templates = taskRepository.observeTemplates().first()
+        val items = taskRepository.observeItems().first()
         val instances = taskRepository.observeAllInstances().first()
 
         val root = JSONObject()
@@ -34,6 +35,10 @@ class DataTransferService(
                 .put("triggerDay", it.triggerDay).put("backfill", it.backfill)
                 .put("active", it.active).put("hidden", it.hidden)
         }))
+        root.put("taskItems", JSONArray(items.map {
+            JSONObject().put("id", it.id).put("templateId", it.templateId)
+                .put("title", it.title).put("sortOrder", it.sortOrder)
+        }))
         root.put("taskInstances", JSONArray(instances.map {
             JSONObject().put("id", it.id).put("templateId", it.templateId)
                 .put("periodKey", it.periodKey).put("title", it.title)
@@ -48,6 +53,7 @@ class DataTransferService(
         val tags = tagRepository.observeAll().first()
         val checkIns = checkInRepository.observeAll().first()
         val templates = taskRepository.observeTemplates().first()
+        val items = taskRepository.observeItems().first()
         val instances = taskRepository.observeAllInstances().first()
 
         val sb = java.lang.StringBuilder()
@@ -57,13 +63,15 @@ class DataTransferService(
         line("CREATE TABLE IF NOT EXISTS tags (id INT PRIMARY KEY, name VARCHAR(100), color INT, created_at BIGINT);")
         line("CREATE TABLE IF NOT EXISTS check_ins (id BIGINT PRIMARY KEY, tag_id INT, note TEXT, timestamp BIGINT);")
         line("CREATE TABLE IF NOT EXISTS task_templates (id INT PRIMARY KEY, period VARCHAR(10), name VARCHAR(100), trigger_day INT, backfill BOOLEAN, active BOOLEAN, hidden BOOLEAN);")
-        line("CREATE TABLE IF NOT EXISTS task_instances (id INT PRIMARY KEY, template_id INT, period_key VARCHAR(20), title VARCHAR(200), sort_order INT, done BOOLEAN);")
+        line("CREATE TABLE IF NOT EXISTS task_items (id INT PRIMARY KEY, template_id INT, title VARCHAR(200), sort_order INT);")
+        line("CREATE TABLE IF NOT EXISTS task_instances (id INT PRIMARY KEY, template_id INT, period_key VARCHAR(20), title VARCHAR(200), sort_order INT, done BOOLEAN, completed_at BIGINT);")
         line()
 
         tags.forEach { line("INSERT INTO tags VALUES (${it.id}, '${esc(it.name)}', ${it.color}, ${it.createdAt});") }
         checkIns.forEach { line("INSERT INTO check_ins VALUES (${it.id}, ${it.tagId ?: "NULL"}, ${it.note?.let { "'${esc(it)}'" } ?: "NULL"}, ${it.timestamp});") }
         templates.forEach { line("INSERT INTO task_templates VALUES (${it.id}, '${esc(it.period)}', '${esc(it.name)}', ${it.triggerDay}, ${if (it.backfill) 1 else 0}, ${if (it.active) 1 else 0}, ${if (it.hidden) 1 else 0});") }
-        instances.forEach { line("INSERT INTO task_instances VALUES (${it.id}, ${it.templateId}, '${esc(it.periodKey)}', '${esc(it.title)}', ${it.sortOrder}, ${if (it.done) 1 else 0});") }
+        items.forEach { line("INSERT INTO task_items VALUES (${it.id}, ${it.templateId}, '${esc(it.title)}', ${it.sortOrder});") }
+        instances.forEach { line("INSERT INTO task_instances VALUES (${it.id}, ${it.templateId}, '${esc(it.periodKey)}', '${esc(it.title)}', ${it.sortOrder}, ${if (it.done) 1 else 0}, ${it.completedAt ?: "NULL"});") }
 
         return sb.toString()
     }
@@ -74,7 +82,7 @@ class DataTransferService(
         val rows = mutableMapOf<String, MutableList<List<String>>>()
         for (m in insertRe.findAll(sql)) {
             val table = m.groupValues[1].lowercase()
-            if (table !in setOf("tags", "check_ins", "task_templates", "task_instances")) continue
+            if (table !in setOf("tags", "check_ins", "task_templates", "task_items", "task_instances")) continue
             rows.getOrPut(table) { mutableListOf() }.add(splitCsv(m.groupValues[2]))
         }
 
@@ -102,11 +110,20 @@ class DataTransferService(
             )
             count++
         }
+        // task_items：旧 SQL 可能没有此表，兼容处理（缺行即跳过）
+        for (v in rows["task_items"].orEmpty()) {
+            taskRepository.importItem(
+                v[0].toInt(), v[1].toInt(), v[2],
+                if (v.size > 3) v[3].toInt() else 0,
+            )
+            count++
+        }
         for (v in rows["task_instances"].orEmpty()) {
             taskRepository.importInstance(
                 v[0].toInt(), v[1].toInt(), v[2], v[3],
                 if (v.size > 4) v[4].toInt() else 0,
                 if (v.size > 5) v[5] == "1" else false,
+                if (v.size > 6 && v[6] != "NULL") v[6].toLong() else null,
             )
             count++
         }
@@ -167,6 +184,20 @@ class DataTransferService(
                 obj.optBoolean("hidden", false),
             )
             count++
+        }
+        // taskItems：旧 JSON 可能没有此字段，兼容处理
+        if (root.has("taskItems")) {
+            val itemsArr = root.getJSONArray("taskItems")
+            for (i in 0 until itemsArr.length()) {
+                val obj = itemsArr.getJSONObject(i)
+                taskRepository.importItem(
+                    obj.getInt("id"),
+                    obj.getInt("templateId"),
+                    obj.getString("title"),
+                    obj.optInt("sortOrder", 0),
+                )
+                count++
+            }
         }
         val instArr = root.getJSONArray("taskInstances")
         for (i in 0 until instArr.length()) {

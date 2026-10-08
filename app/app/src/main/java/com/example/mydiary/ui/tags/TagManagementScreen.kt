@@ -521,12 +521,16 @@ private fun TemplateConfigDialog(
         title = { Text(if (template == null) "添加任务模板" else "配置任务模板") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // 名称
+                // 名称（必填）
                 TextField(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("名称") },
+                    label = { Text("名称 *") },
+                    isError = name.isBlank(),
+                    supportingText = if (name.isBlank()) {
+                        { Text("名称不能为空", color = MaterialTheme.colorScheme.error) }
+                    } else null,
                     singleLine = true,
                 )
 
@@ -579,7 +583,13 @@ private fun TemplateConfigDialog(
                 }
 
                 // 任务项列表
-                if (items.isNotEmpty()) {
+                if (items.isEmpty()) {
+                    Text(
+                        "请至少添加 1 个任务项",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         items.forEach { item ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -621,7 +631,7 @@ private fun TemplateConfigDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (name.isBlank()) return@Button
+                    if (name.isBlank() || items.isEmpty()) return@Button
                     scope.launch {
                         val trimmedName = name.trim()
                         val clampedDay = triggerDay.coerceIn(1, maxDay)
@@ -676,7 +686,7 @@ private fun TemplateConfigDialog(
                         onDismiss()
                     }
                 },
-                enabled = name.isNotBlank(),
+                enabled = name.isNotBlank() && items.isNotEmpty(),
             ) { Text("保存") }
         },
         dismissButton = {
@@ -730,7 +740,8 @@ private fun NewTagDialog(
                     value = name,
                     onValueChange = { name = it.take(2) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("名称（2字）") },
+                    label = { Text("名称") },
+                    placeholder = { Text("名称（推荐2字）") },
                     singleLine = true,
                 )
 

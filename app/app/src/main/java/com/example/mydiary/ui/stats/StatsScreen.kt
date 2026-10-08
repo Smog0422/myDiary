@@ -122,7 +122,6 @@ fun StatsScreen(
     }
 
     val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
-    val todayStart = remember { LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
 
     Scaffold { padding ->
         Column(
@@ -198,36 +197,15 @@ fun StatsScreen(
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
-                                // 最近时间 + "今"标记 + 总次数
+                                // 最近时间 + 总次数
                                 val latestTs = item.tagId?.let { latestByTag[it] }
                                 Column(horizontalAlignment = Alignment.End) {
                                     if (latestTs != null) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        ) {
-                                            Text(
-                                                timeFormat.format(Date(latestTs)),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                            // "今"标记：小圆圈包裹汉字
-                                            if (latestTs >= todayStart) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(CircleShape)
-                                                        .background(MaterialTheme.colorScheme.primary),
-                                                    contentAlignment = Alignment.Center,
-                                                ) {
-                                                    Text(
-                                                        "今",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color.White,
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        Text(
+                                            timeFormat.format(Date(latestTs)),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                     Text(
                                         "共 ${item.count} 次",
