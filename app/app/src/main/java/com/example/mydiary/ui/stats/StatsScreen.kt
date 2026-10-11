@@ -120,6 +120,7 @@ fun StatsScreen(
             }
             .sortedByDescending { it.second }
     }
+    var detailTask by remember { mutableStateOf<Triple<String, Int, List<Pair<String, Int>>>?>(null) }
 
     val timeFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
 
@@ -221,8 +222,8 @@ fun StatsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 任务完成统计区块（按模板分组，二级列表）
-            TaskCompletionSection(data = taskStats)
+            // 任务完成统计区块（按模板分组，卡片 + 弹窗）
+            TaskCompletionSection(data = taskStats, onTaskClick = { detailTask = it })
         }
     }
 
@@ -240,7 +241,7 @@ fun StatsScreen(
         )
     }
 
-    // 明细弹窗
+    // 打卡明细弹窗
     if (detailTagId != null) {
         val detailRecords = remember(checkIns, detailTagId, rangeStart, rangeEnd) {
             checkIns
@@ -255,14 +256,25 @@ fun StatsScreen(
             onDelete = { record -> scope.launch { checkInRepository.delete(record) } },
         )
     }
+
+    // 任务完成明细弹窗
+    detailTask?.let { task ->
+        TaskDetailDialog(
+            taskName = task.first,
+            total = task.second,
+            items = task.third,
+            onDismiss = { detailTask = null },
+        )
+    }
 }
 
 /**
- * 任务完成统计：按模板分组，一级=任务名+总次，二级=子事件+次数。
+ * 任务完成统计：按模板分组的卡片，点击弹窗展示子事件详情。
  */
 @Composable
 private fun TaskCompletionSection(
     data: List<Triple<String, Int, List<Pair<String, Int>>>>,
+    onTaskClick: (Triple<String, Int, List<Pair<String, Int>>>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -274,28 +286,61 @@ private fun TaskCompletionSection(
             return
         }
 
-        data.forEach { (taskName, total, items) ->
-            // 一级：任务名 + 总次数
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+        data.forEach { task ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onTaskClick(task) },
             ) {
-                Text(taskName, style = MaterialTheme.typography.bodyLarge)
-                Text("$total 次", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            // 二级：子事件列表
-            items.forEach { (itemName, count) ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(itemName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("$count 次", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(task.first, style = MaterialTheme.typography.bodyLarge)
+                    Text("${task.second} 次", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
+}
+
+/**
+ * 任务完成明细弹窗：列出该任务下各子事件 + 次数。
+ */
+@Composable
+private fun TaskDetailDialog(
+    taskName: String,
+    total: Int,
+    items: List<Pair<String, Int>>,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("「$taskName」完成明细（共 $total 次）") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items.forEach { (itemName, count) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(itemName, style = MaterialTheme.typography.bodyMedium)
+                        Text("$count 次", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(onClick = onDismiss) { Text("关闭") }
+        },
+    )
 }
 
 /**
@@ -393,6 +438,21 @@ private fun CheckInDetailSheet(
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
     val todayStart = remember { LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    // 最新一条（列表已按时间降序，第一条即最新）的标签文本
+    val latestLabel = remember(records, todayStart) {
+        if (records.isEmpty()) null
+        else {
+            val latest = records.first()
+            if (latest.timestamp >= todayStart) "今"
+            else {
+                val days = java.time.temporal.ChronoUnit.DAYS.between(
+                    java.time.Instant.ofEpochMilli(latest.timestamp).atZone(ZoneId.systemDefault()).toLocalDate(),
+                    LocalDate.now()
+                )
+                "前${days}天"
+            }
+        }
+    }
     var deleteTarget by remember { mutableStateOf<CheckIn?>(null) }
 
     androidx.compose.material3.AlertDialog(
@@ -429,7 +489,7 @@ private fun CheckInDetailSheet(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    records.forEach { record ->
+                    records.forEachIndexed { index, record ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -440,16 +500,16 @@ private fun CheckInDetailSheet(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            // "今"标记
-                            if (record.timestamp >= todayStart) {
+                            // 最新一条（index == 0）显示"今"或"前n天"
+                            if (index == 0 && latestLabel != null) {
                                 Box(
                                     modifier = Modifier
-                                        .size(16.dp)
                                         .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text("今", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    Text(latestLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                             Text(

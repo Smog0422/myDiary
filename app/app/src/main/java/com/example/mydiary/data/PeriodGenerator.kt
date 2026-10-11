@@ -57,15 +57,22 @@ object PeriodGenerator {
         return result.sorted()
     }
 
-    /** 周 periodKey："2026-W29"（ISO 周，周一为起点） */
+    /** 周 periodKey："2026-W41"（ISO 8601 周，周一为起点） */
     fun weekKey(date: LocalDate): String {
-        val year = date.year
-        // ISO-8601 周数计算
-        val adjustedDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.THURSDAY))
-        val thursdayYear = adjustedDate.year
-        val jan1 = LocalDate.of(thursdayYear, 1, 1)
-        val week = ((adjustedDate.dayOfYear - jan1.dayOfYear) / 7) + 1
-        return "${thursdayYear}-W${week.toString().padStart(2, '0')}"
+        // ISO 8601：第 1 周是包含当年第一个周四的那一周（从周一开始）。
+        // 1. 找到本 ISO 周的周四（决定 ISO 年）
+        val thursday = date.with(TemporalAdjusters.nextOrSame(DayOfWeek.THURSDAY))
+        val isoYear = thursday.year
+
+        // 2. 该 ISO 年的 1 月 4 日必定在 W1 内，从它往回推到周一 = W1 的周一
+        val jan4 = LocalDate.of(isoYear, 1, 4)
+        val firstMonday = jan4.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+        // 3. 本周周一距 W1 周一多少周 → 周序
+        val thisMonday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val week = java.time.temporal.ChronoUnit.WEEKS.between(firstMonday, thisMonday).toInt() + 1
+
+        return "${isoYear}-W${week.toString().padStart(2, '0')}"
     }
 
     /** 月 periodKey："2026-07" */

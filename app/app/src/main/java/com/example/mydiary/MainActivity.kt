@@ -5,26 +5,33 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.room.Room
@@ -141,90 +149,130 @@ private fun MainScaffold(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showThemeMenu by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var drawerOpen by remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { Text("MyDiary", style = MaterialTheme.typography.titleLarge) },
-                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                actions = {
-                    // 主题切换
-                    IconButton(onClick = { showThemeMenu = true }) {
-                        Icon(Icons.Default.Palette, contentDescription = "切换主题")
-                    }
-                    DropdownMenu(expanded = showThemeMenu, onDismissRequest = { showThemeMenu = false }) {
-                        DropdownMenuItem(text = { Text("晨雾 · 淡绿") }, onClick = { onSelectTheme(0); showThemeMenu = false })
-                        DropdownMenuItem(text = { Text("暖砂 · 米黄") }, onClick = { onSelectTheme(1); showThemeMenu = false })
-                        DropdownMenuItem(text = { Text("淡海 · 雾蓝") }, onClick = { onSelectTheme(2); showThemeMenu = false })
-                    }
-                    // 日/夜切换
-                    IconButton(onClick = onToggleDarkTheme) {
-                        Icon(
-                            imageVector = if (darkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = if (darkTheme) "切换白天" else "切换黑夜",
-                        )
-                    }
-                },
-            )
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                SettingsScreen(
+                    transferService = transferService,
+                    reminderService = reminderService,
+                    scope = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycleScope,
+                    onNavigateBack = { drawerOpen = false },
+                )
+            }
         },
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "首页") },
-                    label = { Text("首页") },
+    ) {
+        Scaffold(
+            topBar = {
+                androidx.compose.material3.TopAppBar(
+                    title = { Text("MyDiary", style = MaterialTheme.typography.titleLarge) },
+                    colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    actions = {
+                        // 主题切换
+                        IconButton(onClick = { showThemeMenu = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = "切换主题")
+                        }
+                        DropdownMenu(expanded = showThemeMenu, onDismissRequest = { showThemeMenu = false }) {
+                            DropdownMenuItem(text = { Text("晨雾 · 淡绿") }, onClick = { onSelectTheme(0); showThemeMenu = false })
+                            DropdownMenuItem(text = { Text("暖砂 · 米黄") }, onClick = { onSelectTheme(1); showThemeMenu = false })
+                            DropdownMenuItem(text = { Text("淡海 · 雾蓝") }, onClick = { onSelectTheme(2); showThemeMenu = false })
+                        }
+                        // 日/夜切换
+                        IconButton(onClick = onToggleDarkTheme) {
+                            Icon(
+                                imageVector = if (darkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (darkTheme) "切换白天" else "切换黑夜",
+                            )
+                        }
+                        // 设置（齿轮 → 侧边抽屉）
+                        IconButton(onClick = { drawerOpen = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "设置")
+                        }
+                    },
                 )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "统计") },
-                    label = { Text("统计") },
+            },
+            bottomBar = {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "首页") },
+                        label = { Text("首页") },
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.Default.BarChart, contentDescription = "统计") },
+                        label = { Text("统计") },
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Default.Tune, contentDescription = "管理") },
+                        label = { Text("管理") },
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = { Icon(Icons.Default.StickyNote2, contentDescription = "随记") },
+                        label = { Text("随记") },
+                    )
+                }
+            }
+        ) { innerPadding ->
+            when (selectedTab) {
+                0 -> HomeScreen(
+                    tagRepository = tagRepository,
+                    checkInRepository = checkInRepository,
+                    taskRepository = taskRepository,
+                    syncService = syncService,
+                    modifier = Modifier.padding(innerPadding),
                 )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "管理") },
-                    label = { Text("管理") },
+                1 -> StatsScreen(
+                    checkInRepository = checkInRepository,
+                    tagRepository = tagRepository,
+                    taskRepository = taskRepository,
+                    modifier = Modifier.padding(innerPadding),
                 )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Tune, contentDescription = "设置") },
-                    label = { Text("设置") },
+                2 -> TagManagementScreen(
+                    repository = tagRepository,
+                    taskRepository = taskRepository,
+                    modifier = Modifier.padding(innerPadding),
+                )
+                3 -> NotesPlaceholderScreen(
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
         }
-    ) { innerPadding ->
-        when (selectedTab) {
-            0 -> HomeScreen(
-                tagRepository = tagRepository,
-                checkInRepository = checkInRepository,
-                taskRepository = taskRepository,
-                syncService = syncService,
-                modifier = Modifier.padding(innerPadding),
-            )
-            1 -> StatsScreen(
-                checkInRepository = checkInRepository,
-                tagRepository = tagRepository,
-                taskRepository = taskRepository,
-                modifier = Modifier.padding(innerPadding),
-            )
-            2 -> TagManagementScreen(
-                repository = tagRepository,
-                taskRepository = taskRepository,
-                modifier = Modifier.padding(innerPadding),
-            )
-            3 -> SettingsScreen(
-                transferService = transferService,
-                reminderService = reminderService,
-                scope = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycleScope,
-                modifier = Modifier.padding(innerPadding),
-            )
+    }
+
+    // 抽屉开关同步
+    androidx.compose.runtime.LaunchedEffect(drawerOpen) {
+        if (drawerOpen) {
+            drawerState.open()
+        } else {
+            drawerState.close()
         }
+    }
+}
+
+/**
+ * 随记页（占位）：仅显示页面名称。
+ */
+@Composable
+private fun NotesPlaceholderScreen(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("随记", style = MaterialTheme.typography.headlineSmall)
     }
 }

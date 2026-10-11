@@ -109,7 +109,7 @@ object StatsAggregator {
      */
     fun periodLabel(granularity: Granularity, reference: LocalDate): String = when (granularity) {
         Granularity.WEEK -> "${reference.year}年第 ${weekNumber(reference)} 周"
-        Granularity.MONTH -> "${reference.monthValue} 月"
+        Granularity.MONTH -> "${reference.year} 年 ${reference.monthValue} 月"
         Granularity.YEAR -> "${reference.year} 年"
         Granularity.CUSTOM -> "自定义范围"
     }

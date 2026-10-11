@@ -91,9 +91,8 @@ fun HomeScreen(
         allCheckIns.count { it.timestamp >= todayStart }
     }
 
-    // 当前周期标识（刷新后重新计算，跨周/跨月时自动切换）
-    var periodKeys by remember { mutableStateOf(currentPeriodKeys()) }
-    val (weekKey, monthKey) = periodKeys
+    // 当前周期标识（每次重组都重新计算，跨周/跨月时自动切换）
+    val (weekKey, monthKey) = currentPeriodKeys()
     val weeklyTasks by taskRepository.observeInstancesByPeriod(weekKey).collectAsState(initial = emptyList())
     val monthlyTasks by taskRepository.observeInstancesByPeriod(monthKey).collectAsState(initial = emptyList())
 
@@ -111,7 +110,6 @@ fun HomeScreen(
         onRefresh = {
             scope.launch {
                 syncService.sync()
-                periodKeys = currentPeriodKeys()
                 isRefreshing = false
             }
         },

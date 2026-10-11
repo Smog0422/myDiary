@@ -40,16 +40,15 @@ class PeriodSyncService(
 
     /**
      * 判断是否应该为 [template] 生成当前周期的实例。
+     *
+     * 注意：不做"已有实例则跳过"的幂等判断——
+     * generateFromTemplate 按标题增量插入，重复调用只会补齐缺失的子项，
+     * 已存在的实例不受影响。这样即使模板被中途编辑过（子项增删），
+     * 当前周期的实例也能自动补齐。
      */
     suspend fun shouldGenerate(template: TaskTemplate, today: LocalDate): Boolean {
         // 停止或隐藏 → 不生成
         if (!template.active || template.hidden) return false
-
-        val periodKey = currentPeriodKey(template, today)
-
-        // 幂等：已有实例则跳过
-        val existing = taskRepository.observeInstancesByPeriod(periodKey).first()
-        if (existing.any { it.templateId == template.id }) return false
 
         val triggerDate = triggerDateInCurrentPeriod(template, today)
 
